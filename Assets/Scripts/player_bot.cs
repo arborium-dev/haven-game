@@ -139,6 +139,10 @@ public class player_bot : MonoBehaviour
             return paddle.y; // still "reacting", hold position
         }
 
+        // Heading away from us (e.g. the other player's net ball rolling back to them): nothing to hit.
+        if (ball.GroundVelocity.x * player.Facing > 0.01f)
+            return ball.TableBounds.center.y;
+
         // Hits are judged on where the ball LOOKS like it is, so predict that (bounces included)
         // for the moment it reaches our paddle's X. If it's already past us, just chase it.
         float predictedY, timeToPaddle;

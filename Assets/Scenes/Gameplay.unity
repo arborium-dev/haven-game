@@ -434,6 +434,7 @@ GameObject:
   - component: {fileID: 336861123}
   - component: {fileID: 336861124}
   - component: {fileID: 336861125}
+  - component: {fileID: 336861126}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -632,12 +633,38 @@ MonoBehaviour:
   cutsceneTimeline: {fileID: 0}
   cutsceneObject: {fileID: 1670763788}
   cutsceneDuration: 6
+  mirrorOnRightSide: 1
   musicSources:
   - {fileID: 840491764}
   resumeMusicAfter: 1
   poseSprite: {fileID: 0}
   poseDuration: 0.75
   ballSpeedMultiplier: 1.65
+--- !u!114 &336861126
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 336861119}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 45f011027b6296f40ae950821a48b864, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::paddle_swing
+  launcherSprite: {fileID: -2744115394703480497, guid: dffc40648c6d345479f1b955a7ec571b, type: 3}
+  spriteFacesRight: 1
+  holdOffset: {x: 0.35, y: 0.25}
+  scale: 1
+  sortingOrderOffset: 1
+  onlyShowWhileSwinging: 0
+  restAngle: 35
+  windupAngle: 110
+  followThroughAngle: -55
+  windupTime: 0.05
+  strikeTime: 0.08
+  holdTime: 0.05
+  recoverTime: 0.18
 --- !u!1 &431114312
 GameObject:
   m_ObjectHideFlags: 0
@@ -1801,6 +1828,10 @@ GameObject:
   - component: {fileID: 1367712912}
   - component: {fileID: 1367712911}
   - component: {fileID: 1367712910}
+  - component: {fileID: 1367712914}
+  - component: {fileID: 1367712915}
+  - component: {fileID: 1367712916}
+  - component: {fileID: 1367712917}
   - component: {fileID: 1367712913}
   m_Layer: 0
   m_Name: Player 2
@@ -1823,17 +1854,17 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::player_movemen
   playerNumber: 2
   ball: {fileID: 137267773}
-  upKey: 0
-  downKey: 0
-  hitKey: 0
+  upKey: 29
+  downKey: 25
+  hitKey: 2
   moveSpeed: 6
   clampToTable: 1
   tableEdgePadding: 0.5
   minY: -7
   maxY: -1
-  paddlePoint: {fileID: 0}
+  paddlePoint: {fileID: 1367712919}
   paddleOffset: {x: 0.8, y: 0}
-  hitRadius: 1.2
+  hitRadius: 2
   swingDuration: 0.25
   swingCooldown: 0.15
   shotArcHeight: 2.5
@@ -1845,9 +1876,9 @@ MonoBehaviour:
   barelyHitSpeed: 0.75
   aimAmount: 1.5
   maxSpecial: 100
-  barelyHitThreshold: 0.75
+  barelyHitThreshold: 0.523
   normalHitGain: 20
-  barelyHitGainMultiplier: 0.25
+  barelyHitGainMultiplier: 0.5
   animator: {fileID: 0}
   idleAnimation: Idle
   swingAnimation: Swing
@@ -1904,7 +1935,7 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_MaskInteraction: 0
-  m_Sprite: {fileID: -2413806693520163455, guid: a86470a33a6bf42c4b3595704624658b, type: 3}
+  m_Sprite: {fileID: 7721068445916866246, guid: 9ad78e23d59251c42b836d411cd96ae3, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
@@ -1925,9 +1956,10 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 7.75, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_LocalScale: {x: 23, y: 23, z: 23}
+  m_ConstrainProportionsScale: 1
+  m_Children:
+  - {fileID: 1367712919}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1367712913
@@ -1949,6 +1981,138 @@ MonoBehaviour:
   aimChance: 0.5
   deadZone: 0.08
   fullSpeedDistance: 0.4
+--- !u!114 &1367712914
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1367712909}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 345e9fb17065a8746a2c662cabddbf5a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::animation_controller
+  targetRenderer: {fileID: 1367712911}
+  playOnStart: 1
+  startingAnimation: Idle
+  speedMultiplier: 1
+  useUnscaledTime: 0
+  animations:
+  - name: Idle
+    framesPerSecond: 1
+    loop: 1
+    spriteSheets:
+    - {fileID: -8328923581568760697, guid: 9ad78e23d59251c42b836d411cd96ae3, type: 3}
+    frames:
+    - {fileID: 7721068445916866246, guid: 9ad78e23d59251c42b836d411cd96ae3, type: 3}
+    - {fileID: -4396674344846043238, guid: 9ad78e23d59251c42b836d411cd96ae3, type: 3}
+--- !u!114 &1367712915
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1367712909}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 50d5185d02f63ea41ae549892e94f3b3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::special_gauge_display
+  matchBarelyLine: 1
+  radius: 0
+  offset: {x: 0, y: 0.5}
+  resolution: 32
+  thickness: 2
+  emptyColor: {r: 1, g: 1, b: 1, a: 0.25}
+  normalHitColor: {r: 0.25, g: 0.55, b: 1, a: 1}
+  barelyHitColor: {r: 1, g: 0.85, b: 0.2, a: 1}
+  readyColor: {r: 1, g: 0.35, b: 0.85, a: 1}
+  fillSpeed: 1.5
+  sortingOrderOffset: 1
+  drainDuration: 0.6
+  burstScale: 1.5
+  burstDuration: 0.35
+  pulseSpeed: 6
+  pulseAmount: 0.08
+--- !u!114 &1367712916
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1367712909}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9bd8ed3f9e744f449a2fa9c2c1eaa789, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::special_ability
+  cutsceneTimeline: {fileID: 0}
+  cutsceneObject: {fileID: 1670763788}
+  cutsceneDuration: 6
+  mirrorOnRightSide: 1
+  musicSources:
+  - {fileID: 840491764}
+  resumeMusicAfter: 1
+  poseSprite: {fileID: 0}
+  poseDuration: 0.75
+  ballSpeedMultiplier: 1.65
+--- !u!114 &1367712917
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1367712909}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 45f011027b6296f40ae950821a48b864, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::paddle_swing
+  launcherSprite: {fileID: -2744115394703480497, guid: dffc40648c6d345479f1b955a7ec571b, type: 3}
+  spriteFacesRight: 1
+  holdOffset: {x: 0.35, y: 0.25}
+  scale: 1
+  sortingOrderOffset: 1
+  onlyShowWhileSwinging: 0
+  restAngle: 35
+  windupAngle: 110
+  followThroughAngle: -55
+  windupTime: 0.05
+  strikeTime: 0.08
+  holdTime: 0.05
+  recoverTime: 0.18
+--- !u!1 &1367712918
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1367712919}
+  m_Layer: 0
+  m_Name: paddle_point
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1367712919
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1367712918}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0.03, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1367712912}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1623988006
 GameObject:
   m_ObjectHideFlags: 0

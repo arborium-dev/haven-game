@@ -7,6 +7,18 @@ public static class game_settings
 {
     private const string CutscenesKey = "cutscenes_enabled";
     private const string TutorialKey = "tutorial_enabled";
+    private const string Player2BotKey = "player2_bot";
+
+    /// <summary>When on, Player 2 is played by the bot. When off, Player 2 is a second human (arrow keys + Enter).</summary>
+    public static bool Player2IsBot
+    {
+        get => PlayerPrefs.GetInt(Player2BotKey, 1) == 1;
+        set
+        {
+            PlayerPrefs.SetInt(Player2BotKey, value ? 1 : 0);
+            PlayerPrefs.Save();
+        }
+    }
 
     /// <summary>When on, each game starts with the tutorial (for every human player).</summary>
     public static bool TutorialEnabled

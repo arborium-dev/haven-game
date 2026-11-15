@@ -51,6 +51,13 @@ public class ball_controller : MonoBehaviour
     [Range(0f, 1f)]
     [SerializeField] private float autocorrectStrength = 1f;
 
+    [Header("Slow Hits")]
+    [Tooltip("After this many slow (barely) hits in a row, counting both players, the next slow hit is too weak " +
+             "to clear the net: it rolls back to the hitter, who has to roll-save it. 0 = never.")]
+    [SerializeField] private int maxSlowHitsInARow = 3;
+    [Tooltip("How high that too-weak shot lobs before dropping into the net.")]
+    [SerializeField] private float dribbleArcHeight = 1.2f;
+
     [Header("Wall Spin (keeps rallies moving)")]
     [Tooltip("The ball counts as 'at a wall' when it's within this distance of the table's top or bottom edge.")]
     [SerializeField] private float wallZone = 1.5f;
@@ -137,6 +144,11 @@ public class ball_controller : MonoBehaviour
     private float shotSpeed = 1f;     // this shot's own speed (barely = slow, normal = fast)
     private float wallTimer;          // how long the ball has been hugging a side edge
     private float spinAcceleration;   // current sideways pull toward the middle (0 = no spin)
+    private player_movemen netFaulter; // who hit it into the net (ball is rolling back to them)
+    private int slowHitStreak;         // slow (barely) hits in a row this rally, both players
+
+    /// <summary>True while a net ball is rolling back toward the player who hit it, waiting to be rescued.</summary>
+    public bool InNetRebound => netFaulter != null && State == BallState.InPlay;
 
     /// <summary>True while wall spin is curving the ball back toward the middle.</summary>
     public bool IsSpinning => !Mathf.Approximately(spinAcceleration, 0f);
@@ -258,14 +270,27 @@ public class ball_controller : MonoBehaviour
     /// The arc is raised automatically if it wouldn't clear the net.
     /// </summary>
     /// <param name="speedScale">How fast this particular shot travels (1 = normal). The arc keeps its shape.</param>
-    public void Hit(player_movemen hitter, Vector2 target, float arcHeight, float speedScale = 1f)
+    /// <param name="slowHit">A weak (barely) hit. Too many in a row and the next one can't clear the net.</param>
+    public void Hit(player_movemen hitter, Vector2 target, float arcHeight, float speedScale = 1f, bool slowHit = false)
     {
         LastHitter = hitter;
         receiverBounces = 0;
+        netFaulter = null; // rescued (or a fresh shot)
         State = BallState.InPlay;
         shotSpeed = Mathf.Max(0.1f, speedScale);
 
         Vector2 from = GroundPosition;
+
+        // Slow-hit streak counts both players' shots in this rally; any normal hit resets it.
+        slowHitStreak = slowHit ? slowHitStreak + 1 : 0;
+        if (slowHit && maxSlowHitsInARow > 0 && slowHitStreak > maxSlowHitsInARow)
+        {
+            slowHitStreak = 0;
+            DribbleIntoNet(hitter, from, target);
+            OnHit?.Invoke(hitter);
+            return;
+        }
+
         target = AutocorrectTarget(target, hitter);
         float apex = Mathf.Max(arcHeight, height + 0.05f, netHeight + netClearance);
 
@@ -284,6 +309,25 @@ public class ball_controller : MonoBehaviour
         }
 
         OnHit?.Invoke(hitter);
+    }
+
+    /// <summary>
+    /// One slow hit too many: a soft lob that comes down right on the net, so it bounces back to the hitter as a
+    /// rolling ball they have to roll-save (or lose the point).
+    /// </summary>
+    private void DribbleIntoNet(player_movemen hitter, Vector2 from, Vector2 aimedTarget)
+    {
+        Bounds b = TableBounds;
+        int toward = hitter != null ? hitter.Facing : (aimedTarget.x >= NetX ? 1 : -1);
+
+        // Land just past the net line, inside the table's depth so it's guaranteed to catch the net.
+        var target = new Vector2(NetX + toward * 0.05f, Mathf.Clamp(aimedTarget.y, b.min.y + 0.3f, b.max.y - 0.3f));
+        float apex = Mathf.Max(dribbleArcHeight, height + 0.05f);
+
+        float upSpeed = Mathf.Sqrt(2f * gravity * Mathf.Max(0f, apex - height));
+        float flightTime = upSpeed / gravity + Mathf.Sqrt(2f * apex / gravity);
+        verticalVelocity = upSpeed;
+        groundVelocity = (target - from) / flightTime;
     }
 
     /// <summary>
@@ -417,7 +461,12 @@ public class ball_controller : MonoBehaviour
         groundVelocity = new Vector2(-groundVelocity.x * 0.15f, groundVelocity.y * 0.3f);
         verticalVelocity = Mathf.Min(verticalVelocity, 0f);
 
-        EndPoint(Opponent(LastHitter)); // hitter put it into the net
+        // Still a live ball: it rolls back toward the hitter, who can hit it again to keep the rally going.
+        // Clearing LastHitter lets them swing at it again (and skips the "bounced on your own side" fault).
+        // If it reaches the floor without being rescued, the other player gets the point (see HitFloor).
+        netFaulter = LastHitter;
+        LastHitter = null;
+        receiverBounces = 0;
         return true;
     }
 
@@ -453,6 +502,13 @@ public class ball_controller : MonoBehaviour
 
         if (State != BallState.InPlay) return;
 
+        // A net ball that nobody rescued: the player who hit it into the net loses the point.
+        if (netFaulter != null)
+        {
+            EndPoint(Opponent(netFaulter));
+            return;
+        }
+
         // Landed off the table without touching the opponent's side = hitter's fault.
         // Bounced on the opponent's side first = opponent missed it.
         EndPoint(receiverBounces == 0 ? Opponent(LastHitter) : LastHitter);
@@ -466,6 +522,8 @@ public class ball_controller : MonoBehaviour
         resetTimer = pointResetDelay;
         spinAcceleration = 0f;
         wallTimer = 0f;
+        netFaulter = null;
+        slowHitStreak = 0;
 
         if (PracticeMode)
         {
@@ -496,6 +554,8 @@ public class ball_controller : MonoBehaviour
         receiverBounces = 0;
         groundVelocity = Vector2.zero;
         verticalVelocity = 0f;
+        netFaulter = null;
+        slowHitStreak = 0;
         shotSpeed = 1f;
         wallTimer = 0f;
         spinAcceleration = 0f;

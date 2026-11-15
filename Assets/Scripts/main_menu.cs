@@ -17,6 +17,8 @@ public class main_menu : MonoBehaviour
     [SerializeField] private Toggle cutscenesToggle;
     [Tooltip("Empty = a copy of your Cutscenes toggle is placed underneath it, labelled Tutorial Label.")]
     [SerializeField] private Toggle tutorialToggle;
+    [Tooltip("Ticked = Player 2 is a bot. Empty = a copy of your Tutorial toggle is placed underneath it.")]
+    [SerializeField] private Toggle player2BotToggle;
 
     [Header("Scenes")]
     [SerializeField] private string gameSceneName = "Gameplay";
@@ -27,6 +29,7 @@ public class main_menu : MonoBehaviour
     [SerializeField] private string startLabel = "START";
     [SerializeField] private string cutscenesLabel = "CUTSCENES";
     [SerializeField] private string tutorialLabel = "TUTORIAL";
+    [SerializeField] private string player2BotLabel = "P2 BOT";
     [Tooltip("Gap between the Cutscenes toggle and the Tutorial toggle under it.")]
     [SerializeField] private float toggleSpacing = 20f;
     [SerializeField] private Vector2 startButtonPosition = new Vector2(0f, -120f);
@@ -53,6 +56,11 @@ public class main_menu : MonoBehaviour
         if (startButton == null && canvas != null) startButton = BuildButton(canvas.transform);
         if (cutscenesToggle == null && canvas != null) cutscenesToggle = BuildToggle(canvas.transform, cutscenesLabel, togglePosition);
         if (tutorialToggle == null && cutscenesToggle != null) tutorialToggle = CopyToggleBelow(cutscenesToggle, tutorialLabel);
+        if (player2BotToggle == null)
+        {
+            Toggle above = tutorialToggle != null ? tutorialToggle : cutscenesToggle;
+            if (above != null) player2BotToggle = CopyToggleBelow(above, player2BotLabel);
+        }
 
         if (cutscenesToggle != null)
         {
@@ -64,6 +72,12 @@ public class main_menu : MonoBehaviour
         {
             tutorialToggle.SetIsOnWithoutNotify(game_settings.TutorialEnabled);
             tutorialToggle.onValueChanged.AddListener(on => game_settings.TutorialEnabled = on);
+        }
+
+        if (player2BotToggle != null)
+        {
+            player2BotToggle.SetIsOnWithoutNotify(game_settings.Player2IsBot);
+            player2BotToggle.onValueChanged.AddListener(on => game_settings.Player2IsBot = on);
         }
 
         if (startButton != null)
@@ -79,6 +93,7 @@ public class main_menu : MonoBehaviour
         if (startButton != null) startButton.interactable = false;
         if (cutscenesToggle != null) cutscenesToggle.interactable = false;
         if (tutorialToggle != null) tutorialToggle.interactable = false;
+        if (player2BotToggle != null) player2BotToggle.interactable = false;
 
         // The wave grows out from the Start button.
         Vector2 origin = new Vector2(0.5f, 0.5f);

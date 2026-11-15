@@ -154,6 +154,14 @@ public class player_movemen : MonoBehaviour
 
     private void Awake()
     {
+        // Player 2 is a bot or a human depending on the menu's "P2 Bot" toggle.
+        if (playerNumber == 2)
+        {
+            bool wantBot = game_settings.Player2IsBot;
+            if (!TryGetComponent(out player_bot existing) && wantBot) existing = gameObject.AddComponent<player_bot>();
+            if (existing != null) existing.enabled = wantBot;
+        }
+
         TryGetComponent(out bot);
         TryGetComponent(out special);
 

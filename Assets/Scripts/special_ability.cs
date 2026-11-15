@@ -27,6 +27,9 @@ public class special_ability : MonoBehaviour
     [Tooltip("Real seconds the cutscene lasts when it ISN'T a video (or the pause length if no cutscene is set). " +
              "Videos use their own clip length.")]
     [SerializeField] private float cutsceneDuration = 1.5f;
+    [Tooltip("Flip the cutscene left-to-right when this player is on the right side of the table, so it faces " +
+             "the same way they do. Works for videos and cutscene objects (not Timelines).")]
+    [SerializeField] private bool mirrorOnRightSide = true;
 
     [Header("Music")]
     [Tooltip("Music to pause when the cutscene starts. Leave empty to pause every AudioSource that's playing " +
@@ -57,6 +60,17 @@ public class special_ability : MonoBehaviour
     private readonly List<AudioSource> pausedAudio = new List<AudioSource>();
     private readonly List<Canvas> hiddenCanvases = new List<Canvas>();
 
+    // Mirroring state (restored by EndMirror).
+    private VideoPlayer mirroredVideo;
+    private VideoRenderMode savedRenderMode;
+    private RenderTexture savedTargetTexture;
+    private RenderTexture mirrorTexture;
+    private GameObject mirrorScreen;
+    private bool objectFlipped;
+    private Vector3 savedObjectScale;
+
+    private bool MirrorCutscene => mirrorOnRightSide && player.Side > 0;
+
     private void Awake()
     {
         player = GetComponent<player_movemen>();
@@ -82,6 +96,7 @@ public class special_ability : MonoBehaviour
         {
             VideoPlayer video = cutsceneObject.GetComponentInChildren<VideoPlayer>();
             if (video != null) video.Stop();
+            EndMirror();
             cutsceneObject.SetActive(false);
         }
         EndPose();
@@ -174,14 +189,16 @@ public class special_ability : MonoBehaviour
         else if (cutsceneObject != null)
         {
             cutsceneObject.SetActive(true);
+            bool mirror = MirrorCutscene;
 
             VideoPlayer video = cutsceneObject.GetComponentInChildren<VideoPlayer>();
             if (video != null)
             {
-                yield return PlayVideo(video);
+                yield return PlayVideo(video, mirror);
             }
             else
             {
+                if (mirror) FlipCutsceneObject();
                 yield return null;
                 wave.HideInstant();
                 yield return new WaitForSecondsRealtime(cutsceneDuration);
@@ -189,6 +206,7 @@ public class special_ability : MonoBehaviour
 
             wave.ShowCovered(); // cover the last frame before the cutscene disappears
             if (video != null) video.Stop();
+            EndMirror();
             cutsceneObject.SetActive(false);
         }
         else
@@ -224,11 +242,13 @@ public class special_ability : MonoBehaviour
     }
 
     /// <summary>Plays the cutscene video from the start and waits exactly as long as the clip is.</summary>
-    private IEnumerator PlayVideo(VideoPlayer video)
+    private IEnumerator PlayVideo(VideoPlayer video, bool mirror)
     {
         video.playOnAwake = false;
         video.isLooping = false;
         video.timeUpdateMode = VideoTimeUpdateMode.UnscaledGameTime; // keep playing while time is stopped
+
+        if (mirror) BeginMirroredVideo(video);
 
         // Load the video first so it starts instantly on its first frame.
         video.Prepare();
@@ -269,6 +289,94 @@ public class special_ability : MonoBehaviour
 
         video.loopPointReached -= onEnd;
         // (Stopped by Sequence once the wave has covered the screen again.)
+    }
+
+    // ---------- Mirroring ----------
+
+    /// <summary>
+    /// Camera-drawn videos can't be flipped, so for the mirrored version the video plays into a texture that's
+    /// shown full screen, flipped left-to-right, sized the same way the VideoPlayer's Aspect Ratio setting would.
+    /// </summary>
+    private void BeginMirroredVideo(VideoPlayer video)
+    {
+        mirroredVideo = video;
+        savedRenderMode = video.renderMode;
+        savedTargetTexture = video.targetTexture;
+
+        int w = video.clip != null ? (int)video.clip.width : 1920;
+        int h = video.clip != null ? (int)video.clip.height : 1080;
+        mirrorTexture = new RenderTexture(Mathf.Max(1, w), Mathf.Max(1, h), 0) { name = "MirroredCutscene" };
+        video.renderMode = VideoRenderMode.RenderTexture;
+        video.targetTexture = mirrorTexture;
+
+        mirrorScreen = new GameObject("MirroredCutscene");
+        var canvas = mirrorScreen.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 31000; // above the game UI, just under the wave transition
+
+        var imageObj = new GameObject("Video", typeof(RectTransform));
+        imageObj.transform.SetParent(mirrorScreen.transform, false);
+        var rt = (RectTransform)imageObj.transform;
+        rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.sizeDelta = FitSize(video.aspectRatio, w, h, Screen.width, Screen.height);
+
+        var image = imageObj.AddComponent<UnityEngine.UI.RawImage>();
+        image.texture = mirrorTexture;
+        image.uvRect = new Rect(1f, 0f, -1f, 1f); // flipped horizontally
+        image.raycastTarget = false;
+    }
+
+    private void FlipCutsceneObject()
+    {
+        savedObjectScale = cutsceneObject.transform.localScale;
+        cutsceneObject.transform.localScale = new Vector3(-savedObjectScale.x, savedObjectScale.y, savedObjectScale.z);
+        objectFlipped = true;
+    }
+
+    /// <summary>Puts the video / cutscene object back exactly how it was set up.</summary>
+    private void EndMirror()
+    {
+        if (mirroredVideo != null)
+        {
+            mirroredVideo.targetTexture = savedTargetTexture;
+            mirroredVideo.renderMode = savedRenderMode;
+            mirroredVideo = null;
+        }
+        if (mirrorScreen != null) Destroy(mirrorScreen);
+        mirrorScreen = null;
+        if (mirrorTexture != null)
+        {
+            mirrorTexture.Release();
+            Destroy(mirrorTexture);
+            mirrorTexture = null;
+        }
+        if (objectFlipped && cutsceneObject != null)
+        {
+            cutsceneObject.transform.localScale = savedObjectScale;
+            objectFlipped = false;
+        }
+    }
+
+    /// <summary>The on-screen size a video gets for each VideoPlayer Aspect Ratio mode.</summary>
+    private static Vector2 FitSize(VideoAspectRatio mode, float vw, float vh, float sw, float sh)
+    {
+        switch (mode)
+        {
+            case VideoAspectRatio.NoScaling: return new Vector2(vw, vh);
+            case VideoAspectRatio.FitVertically: return new Vector2(sh * vw / vh, sh);
+            case VideoAspectRatio.FitHorizontally: return new Vector2(sw, sw * vh / vw);
+            case VideoAspectRatio.FitInside:
+            {
+                float s = Mathf.Min(sw / vw, sh / vh);
+                return new Vector2(vw * s, vh * s);
+            }
+            case VideoAspectRatio.FitOutside:
+            {
+                float s = Mathf.Max(sw / vw, sh / vh);
+                return new Vector2(vw * s, vh * s);
+            }
+            default: return new Vector2(sw, sh); // Stretch
+        }
     }
 
     private Vector2 ViewportPositionOfPlayer()
