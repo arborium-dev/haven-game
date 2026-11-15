@@ -317,7 +317,7 @@ public class tutorial_manager : MonoBehaviour
         foreach (Panel panel in panels)
         {
             if (panel.root == null || panel.fadeAlpha <= 0f) continue;
-            panel.root.GetWorldCorners(corners); // screen pixels (overlay canvas)
+            GetScreenCorners(panel.root, corners);
             Vector3 world = cam.ScreenToWorldPoint(new Vector3(corners[0].x, corners[0].y, Mathf.Abs(cam.transform.position.z)));
             lowest = Mathf.Min(lowest, world.y);
         }
@@ -351,13 +351,32 @@ public class tutorial_manager : MonoBehaviour
 
         var obj = new GameObject("TutorialUI");
         canvas = obj.AddComponent<Canvas>();
-        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 50; // under the wave transition
+        Camera cam = Camera.main;
+        if (cam != null)
+        {
+            // On the game camera, so the panels stay inside the 16:9 area (see aspect_lock).
+            aspect_lock.AttachToCamera(canvas, cam, 50);
+        }
+        else
+        {
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.sortingOrder = 50; // under the wave transition
+        }
 
+        // Scales with resolution; "Shrink" keeps the 1280x720 layout fully inside the 16:9 area.
         var scaler = obj.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1280f, 720f);
-        scaler.matchWidthOrHeight = 0.5f;
+        scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Shrink;
+    }
+
+    /// <summary>A panel's corners in screen pixels, whichever way the tutorial canvas is drawn.</summary>
+    private void GetScreenCorners(RectTransform rt, Vector3[] corners)
+    {
+        rt.GetWorldCorners(corners);
+        if (canvas == null || canvas.renderMode == RenderMode.ScreenSpaceOverlay || canvas.worldCamera == null) return;
+        for (int i = 0; i < corners.Length; i++)
+            corners[i] = canvas.worldCamera.WorldToScreenPoint(corners[i]);
     }
 
     private Panel BuildPanel(int side)
@@ -479,10 +498,10 @@ public class tutorial_manager : MonoBehaviour
     }
 
     /// A panel's area in screen pixels (the tutorial canvas is a screen overlay), grown by <paramref name="padding"/>.
-    private static Rect ScreenRect(RectTransform rt, float padding)
+    private Rect ScreenRect(RectTransform rt, float padding)
     {
         var corners = new Vector3[4];
-        rt.GetWorldCorners(corners);
+        GetScreenCorners(rt, corners);
         return Rect.MinMaxRect(corners[0].x - padding, corners[0].y - padding,
                                corners[2].x + padding, corners[2].y + padding);
     }

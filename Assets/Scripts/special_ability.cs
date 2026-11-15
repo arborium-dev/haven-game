@@ -323,7 +323,9 @@ public class special_ability : MonoBehaviour
         imageObj.transform.SetParent(mirrorScreen.transform, false);
         var rt = (RectTransform)imageObj.transform;
         rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
-        rt.sizeDelta = FitSize(video.aspectRatio, w, h, Screen.width, Screen.height);
+        // Sized to the game's 16:9 area (not the whole screen), the same area the normal cutscene fills.
+        Rect area = Camera.main != null ? Camera.main.pixelRect : new Rect(0f, 0f, Screen.width, Screen.height);
+        rt.sizeDelta = FitSize(video.aspectRatio, w, h, area.width, area.height);
 
         var image = imageObj.AddComponent<UnityEngine.UI.RawImage>();
         image.texture = mirrorTexture;
@@ -384,12 +386,14 @@ public class special_ability : MonoBehaviour
         }
     }
 
+    /// <summary>The player's position as a 0-1 fraction of the WHOLE screen (the wave covers the whole screen,
+    /// black bars included, so it needs whole-screen coordinates rather than the camera's 16:9 area).</summary>
     private Vector2 ViewportPositionOfPlayer()
     {
         Camera cam = Camera.main;
         if (cam == null) return new Vector2(0.5f, 0.5f);
-        Vector3 v = cam.WorldToViewportPoint(transform.position);
-        return new Vector2(Mathf.Clamp01(v.x), Mathf.Clamp01(v.y));
+        Vector3 s = cam.WorldToScreenPoint(transform.position);
+        return new Vector2(Mathf.Clamp01(s.x / Mathf.Max(1, Screen.width)), Mathf.Clamp01(s.y / Mathf.Max(1, Screen.height)));
     }
 
     /// <summary>Hides screen UI (score etc.) during the cutscene so it doesn't draw on top of the video.</summary>

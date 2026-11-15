@@ -193,7 +193,10 @@ public class cutscene_transition : MonoBehaviour
     private void EnsureTexture()
     {
         int w = Mathf.Max(16, pixelWidth);
-        float aspect = Screen.height > 0 ? (float)Screen.width / Screen.height : 16f / 9f;
+        // Shape of the area actually being covered: the whole screen normally, or the game's 16:9 area when
+        // drawn behind the round winner (so the pixels stay square either way).
+        Rect area = canvas != null ? canvas.pixelRect : new Rect(0f, 0f, Screen.width, Screen.height);
+        float aspect = area.height > 0f ? area.width / area.height : 16f / 9f;
         int h = Mathf.Max(9, Mathf.RoundToInt(w / aspect));
         if (tex != null && w == texW && h == texH) return;
 
