@@ -106,6 +106,8 @@ public class ball_controller : MonoBehaviour
     public float Height => height;
     public Vector2 GroundVelocity => groundVelocity;
     public float NetX => TableBounds.center.x;
+    public SpriteRenderer VisualRenderer => ballVisual != null ? ballVisual.GetComponent<SpriteRenderer>() : null;
+    public SpriteRenderer ShadowRenderer => shadowRenderer;
 
     public Bounds TableBounds =>
         tableSurface != null
@@ -352,6 +354,7 @@ public class ball_controller : MonoBehaviour
     {
         foreach (player_movemen p in players) p.ResetPoints();
         ResetSpecials();
+        match_effects.Instance.ClearTableMarks(); // marks last between points, but not into a new match
         PrepareServe(firstServer != null ? firstServer : (players.Count > 0 ? players[0] : null));
     }
 

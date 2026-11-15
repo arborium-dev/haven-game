@@ -1,6 +1,7 @@
 using System.Collections;
 using UnityEngine;
 using UnityEngine.Playables;
+using UnityEngine.Video;
 
 /// <summary>
 /// The special shot sequence. Add this to a player (next to player_movemen). Each player can have their own.
@@ -18,10 +19,12 @@ public class special_ability : MonoBehaviour
     [Header("Cutscene (use one, or leave both empty to just pause)")]
     [Tooltip("A Timeline to play. It's switched to unscaled time automatically so it runs while time is stopped.")]
     [SerializeField] private PlayableDirector cutsceneTimeline;
-    [Tooltip("An object (e.g. a UI canvas with your cutscene art) switched on for Cutscene Duration, then off again. " +
-             "Animators on it need Update Mode = Unscaled Time; animation_controllers need Use Unscaled Time ticked.")]
+    [Tooltip("An object switched on for the cutscene, then off again. If it has a Video Player, the video is played " +
+             "and the cutscene lasts exactly as long as the clip. Otherwise it stays on for Cutscene Duration " +
+             "(Animators on it need Update Mode = Unscaled Time; animation_controllers need Use Unscaled Time ticked).")]
     [SerializeField] private GameObject cutsceneObject;
-    [Tooltip("Real seconds the Cutscene Object stays on (or the pause length if no cutscene is set).")]
+    [Tooltip("Real seconds the cutscene lasts when it ISN'T a video (or the pause length if no cutscene is set). " +
+             "Videos use their own clip length.")]
     [SerializeField] private float cutsceneDuration = 1.5f;
 
     [Header("Pose (after the cutscene, time still stopped)")]
@@ -65,7 +68,12 @@ public class special_ability : MonoBehaviour
         sequence = null;
 
         if (cutsceneTimeline != null && cutsceneTimeline.state == PlayState.Playing) cutsceneTimeline.Stop();
-        if (cutsceneObject != null) cutsceneObject.SetActive(false);
+        if (cutsceneObject != null)
+        {
+            VideoPlayer video = cutsceneObject.GetComponentInChildren<VideoPlayer>();
+            if (video != null) video.Stop();
+            cutsceneObject.SetActive(false);
+        }
         EndPose();
 
         if (IsPlaying) match_effects.Instance.ResumeTime();
@@ -100,7 +108,13 @@ public class special_ability : MonoBehaviour
         else if (cutsceneObject != null)
         {
             cutsceneObject.SetActive(true);
-            yield return new WaitForSecondsRealtime(cutsceneDuration);
+
+            VideoPlayer video = cutsceneObject.GetComponentInChildren<VideoPlayer>();
+            if (video != null)
+                yield return PlayVideo(video);
+            else
+                yield return new WaitForSecondsRealtime(cutsceneDuration);
+
             cutsceneObject.SetActive(false);
         }
         else
@@ -120,10 +134,50 @@ public class special_ability : MonoBehaviour
 
         // 4. Resume with a faster ball.
         if (player.Ball != null) player.Ball.StackSpeedBoost(ballSpeedMultiplier);
+        match_effects.Instance.QueueTableMark(); // the next table bounce leaves a mark
         match_effects.Instance.ResumeTime();
 
         IsPlaying = false;
         sequence = null;
+    }
+
+    /// <summary>Plays the cutscene video from the start and waits exactly as long as the clip is.</summary>
+    private IEnumerator PlayVideo(VideoPlayer video)
+    {
+        video.playOnAwake = false;
+        video.isLooping = false;
+        video.timeUpdateMode = VideoTimeUpdateMode.UnscaledGameTime; // keep playing while time is stopped
+
+        // Load the video first so it starts instantly on its first frame.
+        video.Prepare();
+        float waited = 0f;
+        while (!video.isPrepared && waited < 3f)
+        {
+            waited += Time.unscaledDeltaTime;
+            yield return null;
+        }
+
+        // Length comes from the clip itself, so swapping the video needs no other changes.
+        double length = video.clip != null ? video.clip.length : video.length;
+        if (length <= 0) length = cutsceneDuration;
+
+        bool finished = false;
+        VideoPlayer.EventHandler onEnd = _ => finished = true;
+        video.loopPointReached += onEnd;
+
+        video.time = 0;
+        video.Play();
+
+        // Wait for the clip to end (with a small safety margin in case the end event never fires).
+        float elapsed = 0f;
+        while (!finished && elapsed < length + 0.5f)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            yield return null;
+        }
+
+        video.loopPointReached -= onEnd;
+        video.Stop();
     }
 
     private void EndPose()
