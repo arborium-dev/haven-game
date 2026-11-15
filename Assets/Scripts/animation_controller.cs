@@ -36,6 +36,9 @@ public class animation_controller : MonoBehaviour
     [Tooltip("Global speed multiplier applied to all animations (1 = normal, 2 = 2x speed, 0 = paused).")]
     [SerializeField] private float speedMultiplier = 1f;
 
+    [Tooltip("Keep animating even when game time is stopped or slowed (e.g. for special cutscenes).")]
+    [SerializeField] private bool useUnscaledTime = false;
+
     [Header("Animations")]
     public List<SpriteAnimation> animations = new List<SpriteAnimation>();
 
@@ -96,7 +99,7 @@ public class animation_controller : MonoBehaviour
             return;
 
         float frameDuration = 1f / Mathf.Abs(effectiveFps);
-        timer += Time.deltaTime;
+        timer += useUnscaledTime ? Time.unscaledDeltaTime : Time.deltaTime;
 
         if (timer < frameDuration)
             return;

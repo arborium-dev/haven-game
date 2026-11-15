@@ -73,6 +73,11 @@ public class ball_controller : MonoBehaviour
     [Tooltip("Seconds after a point ends before the next serve.")]
     [SerializeField] private float pointResetDelay = 1f;
 
+    [Header("Match Reset")]
+    [Tooltip("ON: every point resets both special gauges and the ball's speed back to normal.\n" +
+             "OFF: they only reset when ResetMatch() is called.")]
+    [SerializeField] private bool resetSpecialsEachPoint = true;
+
     /// <summary>Fires when a point ends. Argument is the winner (can be null if there's no opponent).</summary>
     public event Action<player_movemen> OnPointScored;
     /// <summary>Fires when the ball hits the table. Argument is the impact speed.</summary>
@@ -82,6 +87,12 @@ public class ball_controller : MonoBehaviour
     public BallState State { get; private set; } = BallState.Held;
     public player_movemen Server { get; private set; }
     public player_movemen LastHitter { get; private set; }
+
+    /// <summary>How fast the ball moves compared to normal. A special raises this and it never drops back down until a reset.</summary>
+    public float SpeedMultiplier => speedFloor;
+    /// <summary>True once a special has sped the ball up. Hits and bounces then cause slow-mo impact frames.</summary>
+    public bool IsPowered => speedFloor > 1.0001f;
+    private float speedFloor = 1f;
 
     /// <summary>The ball's contact point on the table plane (same as the shadow).</summary>
     public Vector2 GroundPosition => transform.position;
@@ -130,12 +141,17 @@ public class ball_controller : MonoBehaviour
         }
         else
         {
-            Simulate(Time.deltaTime);
+            // Running the ball's own clock faster makes every arc play out faster without changing its shape.
+            Simulate(Time.deltaTime * speedFloor);
 
             if (State == BallState.Dead)
             {
                 resetTimer -= Time.deltaTime;
-                if (resetTimer <= 0f) PrepareServe(Server);
+                if (resetTimer <= 0f)
+                {
+                    if (resetSpecialsEachPoint) ResetSpecials();
+                    PrepareServe(Server);
+                }
             }
         }
 
@@ -174,6 +190,15 @@ public class ball_controller : MonoBehaviour
         }
 
         OnHit?.Invoke(hitter);
+    }
+
+    /// <summary>
+    /// Speeds the ball up to at least <paramref name="multiplier"/> times normal speed.
+    /// This becomes the ball's lowest speed until the match (or point) resets.
+    /// </summary>
+    public void RaiseSpeedFloor(float multiplier)
+    {
+        speedFloor = Mathf.Max(speedFloor, multiplier);
     }
 
     /// <summary>
@@ -314,6 +339,30 @@ public class ball_controller : MonoBehaviour
         FollowServer();
     }
 
+    /// <summary>
+    /// Restarts the match: scores to 0, both special gauges emptied, ball back to normal speed,
+    /// time back to normal, and a fresh serve. Call this from your match-over / restart code.
+    /// </summary>
+    public void ResetMatch()
+    {
+        foreach (player_movemen p in players) p.ResetPoints();
+        ResetSpecials();
+        PrepareServe(firstServer != null ? firstServer : (players.Count > 0 ? players[0] : null));
+    }
+
+    /// <summary>Empties every player's special gauge, cancels any special in progress, and returns the ball to normal speed.</summary>
+    public void ResetSpecials()
+    {
+        foreach (player_movemen p in players)
+        {
+            if (p.TryGetComponent(out special_ability ability)) ability.Cancel();
+            p.ResetSpecial();
+        }
+
+        speedFloor = 1f;
+        match_effects.Instance.ResetTime();
+    }
+
     private void FollowServer()
     {
         height = serveHoldHeight;
@@ -369,11 +418,31 @@ public class ball_controller : MonoBehaviour
             if ((v.x > 0f && pos.x >= x) || (v.x < 0f && pos.x <= x))
             {
                 visual = ToVisual(pos, h);
-                time = t;
+                time = t / speedFloor; // real seconds, accounting for a sped-up ball
                 return true;
             }
         }
         return false;
+    }
+
+    /// <summary>
+    /// If the ball is in play and will next come down ON the table, gives how many real seconds until it
+    /// touches down (at the current speed, ignoring slow-mo) and where. False if it'll miss the table.
+    /// </summary>
+    public bool PredictTableContact(out float realSeconds, out Vector2 contactPoint)
+    {
+        realSeconds = 0f;
+        contactPoint = GroundPosition;
+        if (State != BallState.InPlay || height < 0f) return false;
+
+        // Solve height + vy*t - 0.5*g*t^2 = 0 for the next touchdown.
+        float vy = verticalVelocity;
+        float t = (vy + Mathf.Sqrt(vy * vy + 2f * gravity * height)) / gravity;
+        contactPoint = GroundPosition + groundVelocity * t;
+        if (!IsOverTable(contactPoint)) return false;
+
+        realSeconds = t / speedFloor;
+        return true;
     }
 
     private Vector2 ToVisual(Vector2 ground, float h) => ground + new Vector2(0f, h * heightToScreen + ballRadius);

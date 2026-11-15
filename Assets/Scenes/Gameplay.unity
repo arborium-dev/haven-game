@@ -354,6 +354,67 @@ MonoBehaviour:
   firstServer: {fileID: 0}
   serveHoldHeight: 1
   pointResetDelay: 1
+  resetSpecialsEachPoint: 1
+--- !u!1 &228227364
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 228227366}
+  - component: {fileID: 228227365}
+  m_Layer: 0
+  m_Name: match_effects
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &228227365
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 228227364}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b2ebf2cdae7a73c44a3acde89df29e8a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::match_effects
+  ball: {fileID: 0}
+  cam: {fileID: 0}
+  slowMoScale: 0.15
+  slowMoLeadTime: 0.15
+  releaseHeight: 0.6
+  maxSlowMoTime: 1.5
+  slowDownDuration: 0.08
+  speedUpDuration: 0.2
+  zoomAmount: 0.55
+  zoomInDuration: 0.12
+  zoomOutDuration: 0.25
+  impactPrefab: {fileID: 0}
+  impactAnimation: impact
+  impactOnEveryBounce: 0
+  impactOffset: {x: 0, y: 0}
+  impactMaxLifetime: 2
+--- !u!4 &228227366
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 228227364}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0.62664, y: -1.55539, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &336861119
 GameObject:
   m_ObjectHideFlags: 0
@@ -367,6 +428,7 @@ GameObject:
   - component: {fileID: 336861122}
   - component: {fileID: 336861123}
   - component: {fileID: 336861124}
+  - component: {fileID: 336861125}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -508,6 +570,7 @@ MonoBehaviour:
   playOnStart: 1
   startingAnimation: Idle
   speedMultiplier: 1
+  useUnscaledTime: 0
   animations:
   - name: Idle
     framesPerSecond: 1
@@ -558,6 +621,24 @@ MonoBehaviour:
   popupLifetime: 1
   popupRise: 0.75
   popupSortingOrder: 100
+--- !u!114 &336861125
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 336861119}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9bd8ed3f9e744f449a2fa9c2c1eaa789, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::special_ability
+  cutsceneTimeline: {fileID: 0}
+  cutsceneObject: {fileID: 0}
+  cutsceneDuration: 1.5
+  poseSprite: {fileID: 0}
+  poseDuration: 0.75
+  ballSpeedMultiplier: 1.5
 --- !u!1 &519420028
 GameObject:
   m_ObjectHideFlags: 0
@@ -992,6 +1073,7 @@ MonoBehaviour:
   playOnStart: 1
   startingAnimation: Table_Normal
   speedMultiplier: 1
+  useUnscaledTime: 0
   animations:
   - name: Table_Normal
     framesPerSecond: 4
@@ -1252,3 +1334,4 @@ SceneRoots:
   - {fileID: 137267772}
   - {fileID: 40996657}
   - {fileID: 1235133967}
+  - {fileID: 228227366}

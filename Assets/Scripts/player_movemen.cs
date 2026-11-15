@@ -117,11 +117,13 @@ public class player_movemen : MonoBehaviour
     private bool hitThisSwing;
     private float closestDist = float.MaxValue;
     private player_bot bot;
+    private special_ability special;
     private bool BotActive => bot != null && bot.isActiveAndEnabled;
 
     private void Awake()
     {
         TryGetComponent(out bot);
+        TryGetComponent(out special);
 
         if (upKey == Key.None) upKey = playerNumber == 1 ? Key.W : Key.UpArrow;
         if (downKey == Key.None) downKey = playerNumber == 1 ? Key.S : Key.DownArrow;
@@ -158,6 +160,9 @@ public class player_movemen : MonoBehaviour
 
     private void Update()
     {
+        // Time is stopped for a special: no moving or swinging until it resumes.
+        if (Time.timeScale == 0f) return;
+
         float vertical = ReadVertical();
         Move(vertical);
 
@@ -271,14 +276,17 @@ public class player_movemen : MonoBehaviour
         PlayAnimation(specialShotAnimation, restart: true);
         OnSpecialShot?.Invoke();
 
-        // =====================================================================
-        //  SPECIAL SHOT GOES HERE
-        //  The gauge was full, so this hit is the special. Replace the normal
-        //  return below with whatever the special does (faster ball, curve,
-        //  fake-out, screen shake, etc.). ball.Hit(...) sends the ball; you can
-        //  also add new methods to ball_controller for special-only behaviour.
-        // =====================================================================
         ball.Hit(this, GetShotTarget(aim), shotArcHeight);
+
+        // =====================================================================
+        //  SPECIAL SHOT
+        //  The time stop -> cutscene -> pose -> faster ball sequence lives in
+        //  special_ability.cs. Add extra special-only effects here or there.
+        // =====================================================================
+        if (special != null)
+            special.Activate();
+        else
+            Debug.LogWarning($"[player_movemen] '{name}' used a special but has no special_ability component.", this);
     }
 
     /// <summary>
@@ -316,6 +324,14 @@ public class player_movemen : MonoBehaviour
     }
 
     public void AddPoint() => Points++;
+    public void ResetPoints() => Points = 0;
+
+    /// <summary>Empties the special gauge (used when the match resets).</summary>
+    public void ResetSpecial()
+    {
+        Special = 0f;
+        OnSpecialChanged?.Invoke(0f);
+    }
 
     // ---------- Input / helpers ----------
 
