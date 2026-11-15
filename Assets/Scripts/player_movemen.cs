@@ -122,6 +122,8 @@ public class player_movemen : MonoBehaviour
     public float BarelyRadius => hitRadius * barelyHitThreshold;
 
     public ball_controller Ball => ball;
+    /// <summary>When true the player ignores input (used when the round ends).</summary>
+    public bool ControlsLocked { get; set; }
     public float SwingDuration => swingDuration;
 
     private float swingTimer;
@@ -172,8 +174,8 @@ public class player_movemen : MonoBehaviour
 
     private void Update()
     {
-        // Time is stopped for a special: no moving or swinging until it resumes.
-        if (Time.timeScale == 0f) return;
+        // Time is stopped for a special (or the round is over): no moving or swinging.
+        if (Time.timeScale == 0f || ControlsLocked) return;
 
         float vertical = ReadVertical();
         Move(vertical);

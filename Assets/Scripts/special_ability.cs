@@ -55,6 +55,7 @@ public class special_ability : MonoBehaviour
     private bool posing;
     private Coroutine sequence;
     private readonly List<AudioSource> pausedAudio = new List<AudioSource>();
+    private readonly List<Canvas> hiddenCanvases = new List<Canvas>();
 
     private void Awake()
     {
@@ -84,6 +85,9 @@ public class special_ability : MonoBehaviour
             cutsceneObject.SetActive(false);
         }
         EndPose();
+
+        if (IsPlaying) cutscene_transition.Instance.HideInstant();
+        ShowUI();
 
         if (IsPlaying) match_effects.Instance.ResumeTime();
         ResumeMusic();
@@ -123,26 +127,48 @@ public class special_ability : MonoBehaviour
     {
         IsPlaying = true;
 
+        // Cutscenes can be switched off from the menu: then the special skips straight to the pose + speed up.
+        bool cutscenesOn = game_settings.CutscenesEnabled;
+
         // 1. Stop time and the music.
         match_effects.Instance.StopTime();
-        PauseMusic();
+        if (cutscenesOn) PauseMusic();
 
-        // 2. Cutscene.
-        if (cutsceneTimeline != null)
+        // 2. Cutscene, wrapped in the wave transition.
+        bool hasCutscene = cutscenesOn && (cutsceneTimeline != null || cutsceneObject != null);
+        cutscene_transition wave = cutscene_transition.Instance;
+
+        if (hasCutscene)
+        {
+            // A wave swirls out from this player and covers everything, then the UI is hidden underneath it.
+            wave.DrawOverEverything();
+            yield return wave.Cover(ViewportPositionOfPlayer());
+            HideUI();
+        }
+
+        if (!cutscenesOn)
+        {
+            // No cutscene, no pause.
+        }
+        else if (cutsceneTimeline != null)
         {
             cutsceneTimeline.timeUpdateMode = DirectorUpdateMode.UnscaledGameTime;
             cutsceneTimeline.extrapolationMode = DirectorWrapMode.None;
             cutsceneTimeline.time = 0;
             cutsceneTimeline.Play();
 
+            yield return null; // let it start
+            wave.HideInstant();
+
             float timeout = (float)cutsceneTimeline.duration + 0.5f;
             float t = 0f;
-            yield return null; // let it start
             while (cutsceneTimeline.state == PlayState.Playing && t < timeout)
             {
                 t += Time.unscaledDeltaTime;
                 yield return null;
             }
+
+            wave.ShowCovered(); // cover the last frame before the cutscene disappears
             cutsceneTimeline.Stop();
         }
         else if (cutsceneObject != null)
@@ -151,15 +177,30 @@ public class special_ability : MonoBehaviour
 
             VideoPlayer video = cutsceneObject.GetComponentInChildren<VideoPlayer>();
             if (video != null)
+            {
                 yield return PlayVideo(video);
+            }
             else
+            {
+                yield return null;
+                wave.HideInstant();
                 yield return new WaitForSecondsRealtime(cutsceneDuration);
+            }
 
+            wave.ShowCovered(); // cover the last frame before the cutscene disappears
+            if (video != null) video.Stop();
             cutsceneObject.SetActive(false);
         }
         else
         {
             yield return new WaitForSecondsRealtime(cutsceneDuration);
+        }
+
+        if (hasCutscene)
+        {
+            // Bring the UI back under the wave, then pull the wave back to reveal the game.
+            ShowUI();
+            yield return wave.Uncover();
         }
 
         // 3. Pose, still frozen.
@@ -209,8 +250,17 @@ public class special_ability : MonoBehaviour
         video.time = 0;
         video.Play();
 
+        // Keep the wave up until the video's first frame is actually on screen, then drop it.
+        float startWait = 0f;
+        while (video.frame <= 0 && startWait < 0.5f)
+        {
+            startWait += Time.unscaledDeltaTime;
+            yield return null;
+        }
+        cutscene_transition.Instance.HideInstant();
+
         // Wait for the clip to end (with a small safety margin in case the end event never fires).
-        float elapsed = 0f;
+        float elapsed = startWait;
         while (!finished && elapsed < length + 0.5f)
         {
             elapsed += Time.unscaledDeltaTime;
@@ -218,7 +268,39 @@ public class special_ability : MonoBehaviour
         }
 
         video.loopPointReached -= onEnd;
-        video.Stop();
+        // (Stopped by Sequence once the wave has covered the screen again.)
+    }
+
+    private Vector2 ViewportPositionOfPlayer()
+    {
+        Camera cam = Camera.main;
+        if (cam == null) return new Vector2(0.5f, 0.5f);
+        Vector3 v = cam.WorldToViewportPoint(transform.position);
+        return new Vector2(Mathf.Clamp01(v.x), Mathf.Clamp01(v.y));
+    }
+
+    /// <summary>Hides screen UI (score etc.) during the cutscene so it doesn't draw on top of the video.</summary>
+    private void HideUI()
+    {
+        hiddenCanvases.Clear();
+        Canvas waveCanvas = cutscene_transition.Instance.OverlayCanvas;
+
+        foreach (Canvas c in FindObjectsByType<Canvas>())
+        {
+            if (c == null || !c.enabled || !c.isRootCanvas || c == waveCanvas) continue;
+            if (c.renderMode == RenderMode.WorldSpace) continue; // in-world UI is already covered by the video
+            if (cutsceneObject != null && c.transform.IsChildOf(cutsceneObject.transform)) continue;
+
+            c.enabled = false;
+            hiddenCanvases.Add(c);
+        }
+    }
+
+    private void ShowUI()
+    {
+        foreach (Canvas c in hiddenCanvases)
+            if (c != null) c.enabled = true;
+        hiddenCanvases.Clear();
     }
 
     private void EndPose()

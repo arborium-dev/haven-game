@@ -83,6 +83,10 @@ public class ball_controller : MonoBehaviour
     [Tooltip("Seconds after a point ends before the next serve.")]
     [SerializeField] private float pointResetDelay = 1f;
 
+    [Header("Winning")]
+    [Tooltip("First player to this many points wins the round (0 = play forever).")]
+    [SerializeField] private int pointsToWin = 6;
+
     [Header("Match Reset")]
     [Tooltip("ON: every point resets both special gauges and the ball's speed back to normal.\n" +
              "OFF: they only reset when ResetMatch() is called.")]
@@ -101,6 +105,8 @@ public class ball_controller : MonoBehaviour
     public BallState State { get; private set; } = BallState.Held;
     public player_movemen Server { get; private set; }
     public player_movemen LastHitter { get; private set; }
+    /// <summary>True once a player has reached Points To Win.</summary>
+    public bool RoundOver { get; private set; }
 
     /// <summary>How fast the ball moves compared to normal. A special raises this and it never drops back down until a reset.</summary>
     public float SpeedMultiplier => speedFloor;
@@ -169,7 +175,7 @@ public class ball_controller : MonoBehaviour
             if (State == BallState.Dead)
             {
                 resetTimer -= Time.deltaTime;
-                if (resetTimer <= 0f)
+                if (resetTimer <= 0f && !RoundOver) // no more serves once someone has won
                 {
                     if (resetSpecialsEachPoint) ResetSpecials();
                     PrepareServe(Server);
@@ -404,6 +410,12 @@ public class ball_controller : MonoBehaviour
         }
 
         OnPointScored?.Invoke(winner);
+
+        if (winner != null && pointsToWin > 0 && winner.Points >= pointsToWin)
+        {
+            RoundOver = true;
+            round_end.Instance.Play(winner, Opponent(winner));
+        }
     }
 
     /// <summary>Puts the ball on <paramref name="server"/>'s paddle, waiting for them to hit.</summary>
@@ -427,6 +439,7 @@ public class ball_controller : MonoBehaviour
     /// </summary>
     public void ResetMatch()
     {
+        RoundOver = false;
         foreach (player_movemen p in players) p.ResetPoints();
         ResetSpecials();
         match_effects.Instance.ClearTableMarks(); // marks last between points, but not into a new match
