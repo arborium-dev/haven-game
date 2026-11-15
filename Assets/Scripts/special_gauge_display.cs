@@ -39,6 +39,9 @@ public class special_gauge_display : MonoBehaviour
     [SerializeField] private float fillSpeed = 1.5f;
     [Tooltip("Draw order relative to the player's sprite (+1 = in front).")]
     [SerializeField] private int sortingOrderOffset = 1;
+    [Tooltip("Real seconds for a full ring to drain away when the gauge is emptied (special used / point reset). " +
+             "Runs even while time is stopped.")]
+    [SerializeField] private float drainDuration = 0.6f;
 
     [Header("Full Gauge Animation")]
     [SerializeField] private float burstScale = 1.5f;
@@ -46,27 +49,27 @@ public class special_gauge_display : MonoBehaviour
     [Tooltip("Gentle pulse while the special is ready.")]
     [SerializeField] private float pulseSpeed = 6f;
     [SerializeField] private float pulseAmount = 0.08f;
-
-    [Header("Special Ready Popup")]
-    [Tooltip("Optional. Your own popup prefab. Can be UI (TextMeshPro - Text (UI), Images) or world-space " +
-             "(TextMeshPro - Text, SpriteRenderers). If empty, a text box is built automatically.")]
-    [SerializeField] private GameObject popupPrefab;
-    [Tooltip("For UI popup prefabs: world units per UI pixel (0.02 = a 200px wide prefab is 4 units wide).")]
-    [SerializeField] private float popupCanvasScale = 0.02f;
-    [SerializeField] private string popupMessage = "bounce back UP!";
-    [Tooltip("TextMeshPro font for the auto-built popup. Empty = TextMeshPro's default font.")]
-    [SerializeField] private TMP_FontAsset popupFont;
-    [SerializeField] private float popupFontSize = 4f;
-    [SerializeField] private Color popupTextColor = Color.white;
-    [SerializeField] private Color popupBoxColor = new Color(0.12f, 0.1f, 0.25f, 0.9f);
-    [SerializeField] private Color popupBorderColor = new Color(1f, 0.85f, 0.2f, 1f);
-    [Tooltip("Size of one 'pixel' of the text box border, in world units.")]
-    [SerializeField] private float popupBoxPixelSize = 0.07f;
-    [SerializeField] private Vector2 popupPadding = new Vector2(0.25f, 0.12f);
-    [SerializeField] private Vector2 popupOffset = new Vector2(0f, 1.5f);
-    [SerializeField] private float popupLifetime = 1f;
-    [SerializeField] private float popupRise = 0.75f;
-    [SerializeField] private int popupSortingOrder = 100;
+    //
+    // [Header("Special Ready Popup")]
+    // [Tooltip("Optional. Your own popup prefab. Can be UI (TextMeshPro - Text (UI), Images) or world-space " +
+    //          "(TextMeshPro - Text, SpriteRenderers). If empty, a text box is built automatically.")]
+    // [SerializeField] private GameObject popupPrefab;
+    // [Tooltip("For UI popup prefabs: world units per UI pixel (0.02 = a 200px wide prefab is 4 units wide).")]
+    // [SerializeField] private float popupCanvasScale = 0.02f;
+    // [SerializeField] private string popupMessage = "bounce back UP!";
+    // [Tooltip("TextMeshPro font for the auto-built popup. Empty = TextMeshPro's default font.")]
+    // [SerializeField] private TMP_FontAsset popupFont;
+    // [SerializeField] private float popupFontSize = 4f;
+    // [SerializeField] private Color popupTextColor = Color.white;
+    // [SerializeField] private Color popupBoxColor = new Color(0.12f, 0.1f, 0.25f, 0.9f);
+    // [SerializeField] private Color popupBorderColor = new Color(1f, 0.85f, 0.2f, 1f);
+    // [Tooltip("Size of one 'pixel' of the text box border, in world units.")]
+    // [SerializeField] private float popupBoxPixelSize = 0.07f;
+    // [SerializeField] private Vector2 popupPadding = new Vector2(0.25f, 0.12f);
+    // [SerializeField] private Vector2 popupOffset = new Vector2(0f, 1.5f);
+    // [SerializeField] private float popupLifetime = 1f;
+    // [SerializeField] private float popupRise = 0.75f;
+    // [SerializeField] private int popupSortingOrder = 100;
 
     private player_movemen player;
     private SpriteRenderer ringRenderer;
@@ -76,6 +79,11 @@ public class special_gauge_display : MonoBehaviour
     // Pieces of the gauge in the order they were earned: where each ends (0-1) and if it came from a barely hit.
     private readonly List<(float end, bool barely)> segments = new List<(float end, bool barely)>();
     private int segmentsVersion, drawnSegmentsVersion = -1;
+
+    // While draining: the old colors for the part of the ring that's emptying out.
+    private readonly List<(float end, bool barely)> drainSegments = new List<(float end, bool barely)>();
+    private bool draining;
+    private bool drainWasReady;
 
     private float displayedFill;
     private float drawnFill = -1f;
@@ -96,13 +104,13 @@ public class special_gauge_display : MonoBehaviour
     {
         if (player == null) player = GetComponent<player_movemen>();
         player.OnSpecialGained += HandleSpecialGained;
-        player.OnSpecialReady += HandleSpecialReady;
+        // player.OnSpecialReady += HandleSpecialReady;
     }
 
     private void OnDisable()
     {
         player.OnSpecialGained -= HandleSpecialGained;
-        player.OnSpecialReady -= HandleSpecialReady;
+        // player.OnSpecialReady -= HandleSpecialReady;
         if (ringRenderer != null) ringRenderer.enabled = false;
     }
 
@@ -125,17 +133,26 @@ public class special_gauge_display : MonoBehaviour
             ringRenderer.transform.position = new Vector3(p.x, p.y, transform.position.z);
         }
 
-        // Ring catches up smoothly when filling, empties instantly when the special is spent.
+        // Ring catches up smoothly when filling, and drains away when the gauge is emptied.
         float target = player.SpecialNormalized;
         if (target < displayedFill)
         {
-            // Gauge was spent: start the colors over.
-            displayedFill = target;
-            segments.Clear();
-            segmentsVersion++;
+            if (!draining)
+            {
+                // Gauge was emptied: the old colors drain out, new gauge starts with fresh colors.
+                draining = true;
+                drainWasReady = drawnReady;
+                drainSegments.Clear();
+                drainSegments.AddRange(segments);
+                segments.Clear();
+                segmentsVersion++;
+            }
+            // Unscaled, so it drains during the special's time stop too.
+            displayedFill = Mathf.MoveTowards(displayedFill, target, Time.unscaledDeltaTime / Mathf.Max(0.01f, drainDuration));
         }
         else
         {
+            draining = false;
             displayedFill = Mathf.MoveTowards(displayedFill, target, fillSpeed * Time.deltaTime);
         }
 
@@ -233,11 +250,21 @@ public class special_gauge_display : MonoBehaviour
         ringTexture.Apply();
     }
 
-    /// <summary>Color of the filled ring at point a (0-1): purple when ready, otherwise blue/yellow by how it was earned.</summary>
+    /// <summary>
+    /// Color of the filled ring at point a (0-1): purple when ready, otherwise blue/yellow by how it was earned.
+    /// The part that's draining away keeps the colors it had (purple if the special was ready).
+    /// </summary>
     private Color32 FilledColorAt(float a, bool ready)
     {
         if (ready) return readyColor;
-        foreach (var seg in segments)
+        if (draining && a > player.SpecialNormalized)
+            return drainWasReady ? (Color32)readyColor : SegmentColorAt(drainSegments, a);
+        return SegmentColorAt(segments, a);
+    }
+
+    private Color32 SegmentColorAt(List<(float end, bool barely)> list, float a)
+    {
+        foreach (var seg in list)
             if (a <= seg.end) return seg.barely ? barelyHitColor : normalHitColor;
         return normalHitColor;
     }
@@ -267,132 +294,132 @@ public class special_gauge_display : MonoBehaviour
     }
 
     // ---------- Special ready popup ----------
-
-    private void HandleSpecialReady()
-    {
-        if (!player.HasSpecialGauge) return; // bots don't get the special effect
-
-        Vector3 pos = transform.position + (Vector3)popupOffset;
-        GameObject popup;
-
-        if (popupPrefab != null && IsUIPrefab(popupPrefab))
-        {
-            // UI elements only draw inside a Canvas, so give it a small world-space one.
-            popup = BuildWorldCanvas(pos);
-            GameObject inst = Instantiate(popupPrefab, popup.transform, false);
-            var rt = (RectTransform)inst.transform;
-            rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
-            rt.anchoredPosition = Vector2.zero;
-            SetPopupText(inst);
-        }
-        else if (popupPrefab != null)
-        {
-            popup = Instantiate(popupPrefab, pos, Quaternion.identity);
-            SetPopupText(popup);
-        }
-        else
-        {
-            popup = BuildPopup(pos);
-        }
-
-        popup_text anim = popup.GetComponent<popup_text>();
-        if (anim == null) anim = popup.AddComponent<popup_text>();
-        anim.Play(popupLifetime, popupRise);
-    }
-
-    private void SetPopupText(GameObject popup)
-    {
-        TMP_Text text = popup.GetComponentInChildren<TMP_Text>();
-        if (text != null && !string.IsNullOrEmpty(popupMessage)) text.text = popupMessage;
-    }
-
-    /// <summary>True if the prefab is UI (e.g. "Text (TMP)" made under a Canvas) and has no Canvas of its own.</summary>
-    private static bool IsUIPrefab(GameObject prefab)
-    {
-        return prefab.GetComponentInChildren<CanvasRenderer>(true) != null
-            && prefab.GetComponentInChildren<Canvas>(true) == null;
-    }
-
-    private GameObject BuildWorldCanvas(Vector3 pos)
-    {
-        var root = new GameObject("SpecialReadyPopup", typeof(RectTransform));
-        var canvas = root.AddComponent<Canvas>();
-        canvas.renderMode = RenderMode.WorldSpace;
-        if (TryGetComponent(out SpriteRenderer sr)) canvas.sortingLayerID = sr.sortingLayerID;
-        canvas.sortingOrder = popupSortingOrder;
-
-        var rt = (RectTransform)root.transform;
-        rt.position = pos;
-        rt.sizeDelta = new Vector2(400f, 100f);
-        rt.localScale = Vector3.one * popupCanvasScale;
-        return root;
-    }
-
-    private GameObject BuildPopup(Vector3 pos)
-    {
-        var root = new GameObject("SpecialReadyPopup");
-        root.transform.position = pos;
-
-        // Text
-        var textObj = new GameObject("Text");
-        textObj.transform.SetParent(root.transform, false);
-        var tmp = textObj.AddComponent<TextMeshPro>();
-        if (popupFont != null) tmp.font = popupFont;
-        tmp.text = popupMessage;
-        tmp.fontSize = popupFontSize;
-        tmp.color = popupTextColor;
-        tmp.alignment = TextAlignmentOptions.Center;
-        tmp.textWrappingMode = TextWrappingModes.NoWrap;
-        tmp.rectTransform.sizeDelta = new Vector2(20f, 5f);
-        tmp.sortingOrder = popupSortingOrder + 1;
-        tmp.ForceMeshUpdate();
-
-        // Text box behind it, sized to the text
-        Vector2 textSize = tmp.GetRenderedValues(false);
-        var boxObj = new GameObject("Box");
-        boxObj.transform.SetParent(root.transform, false);
-        var box = boxObj.AddComponent<SpriteRenderer>();
-        box.sprite = GetBoxSprite();
-        box.drawMode = SpriteDrawMode.Sliced;
-        box.size = textSize + popupPadding * 2f;
-        box.sortingOrder = popupSortingOrder;
-
-        return root;
-    }
-
-    /// <summary>Tiny 9-sliced pixel box: 1px border, clipped corners, stretchable middle.</summary>
-    private Sprite GetBoxSprite()
-    {
-        Color32 fill = popupBoxColor, border = popupBorderColor;
-        if (boxSprite != null && boxSpriteFill.Equals(fill) && boxSpriteBorder.Equals(border))
-            return boxSprite;
-
-        const int size = 6;
-        var tex = new Texture2D(size, size, TextureFormat.RGBA32, false)
-        {
-            filterMode = FilterMode.Point,
-            wrapMode = TextureWrapMode.Clamp,
-            name = "PopupBox"
-        };
-
-        Color32 clear = new Color32(0, 0, 0, 0);
-        for (int y = 0; y < size; y++)
-        {
-            for (int x = 0; x < size; x++)
-            {
-                bool edgeX = x == 0 || x == size - 1;
-                bool edgeY = y == 0 || y == size - 1;
-                Color32 c = edgeX && edgeY ? clear : (edgeX || edgeY ? border : fill);
-                tex.SetPixel(x, y, c);
-            }
-        }
-        tex.Apply();
-
-        float ppu = 1f / Mathf.Max(0.001f, popupBoxPixelSize);
-        boxSprite = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), ppu,
-                                  0, SpriteMeshType.FullRect, new Vector4(2, 2, 2, 2));
-        boxSpriteFill = fill;
-        boxSpriteBorder = border;
-        return boxSprite;
-    }
+    //
+    // private void HandleSpecialReady()
+    // {
+    //     if (!player.HasSpecialGauge) return; // bots don't get the special effect
+    //
+    //     Vector3 pos = transform.position + (Vector3)popupOffset;
+    //     GameObject popup;
+    //
+    //     if (popupPrefab != null && IsUIPrefab(popupPrefab))
+    //     {
+    //         // UI elements only draw inside a Canvas, so give it a small world-space one.
+    //         popup = BuildWorldCanvas(pos);
+    //         GameObject inst = Instantiate(popupPrefab, popup.transform, false);
+    //         var rt = (RectTransform)inst.transform;
+    //         rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+    //         rt.anchoredPosition = Vector2.zero;
+    //         SetPopupText(inst);
+    //     }
+    //     else if (popupPrefab != null)
+    //     {
+    //         popup = Instantiate(popupPrefab, pos, Quaternion.identity);
+    //         SetPopupText(popup);
+    //     }
+    //     else
+    //     {
+    //         popup = BuildPopup(pos);
+    //     }
+    //
+    //     popup_text anim = popup.GetComponent<popup_text>();
+    //     if (anim == null) anim = popup.AddComponent<popup_text>();
+    //     anim.Play(popupLifetime, popupRise);
+    // }
+    //
+    // private void SetPopupText(GameObject popup)
+    // {
+    //     TMP_Text text = popup.GetComponentInChildren<TMP_Text>();
+    //     if (text != null && !string.IsNullOrEmpty(popupMessage)) text.text = popupMessage;
+    // }
+    //
+    // /// <summary>True if the prefab is UI (e.g. "Text (TMP)" made under a Canvas) and has no Canvas of its own.</summary>
+    // private static bool IsUIPrefab(GameObject prefab)
+    // {
+    //     return prefab.GetComponentInChildren<CanvasRenderer>(true) != null
+    //         && prefab.GetComponentInChildren<Canvas>(true) == null;
+    // }
+    //
+    // private GameObject BuildWorldCanvas(Vector3 pos)
+    // {
+    //     var root = new GameObject("SpecialReadyPopup", typeof(RectTransform));
+    //     var canvas = root.AddComponent<Canvas>();
+    //     canvas.renderMode = RenderMode.WorldSpace;
+    //     if (TryGetComponent(out SpriteRenderer sr)) canvas.sortingLayerID = sr.sortingLayerID;
+    //     canvas.sortingOrder = popupSortingOrder;
+    //
+    //     var rt = (RectTransform)root.transform;
+    //     rt.position = pos;
+    //     rt.sizeDelta = new Vector2(400f, 100f);
+    //     rt.localScale = Vector3.one * popupCanvasScale;
+    //     return root;
+    // }
+    //
+    // private GameObject BuildPopup(Vector3 pos)
+    // {
+    //     var root = new GameObject("SpecialReadyPopup");
+    //     root.transform.position = pos;
+    //
+    //     // Text
+    //     var textObj = new GameObject("Text");
+    //     textObj.transform.SetParent(root.transform, false);
+    //     var tmp = textObj.AddComponent<TextMeshPro>();
+    //     if (popupFont != null) tmp.font = popupFont;
+    //     tmp.text = popupMessage;
+    //     tmp.fontSize = popupFontSize;
+    //     tmp.color = popupTextColor;
+    //     tmp.alignment = TextAlignmentOptions.Center;
+    //     tmp.textWrappingMode = TextWrappingModes.NoWrap;
+    //     tmp.rectTransform.sizeDelta = new Vector2(20f, 5f);
+    //     tmp.sortingOrder = popupSortingOrder + 1;
+    //     tmp.ForceMeshUpdate();
+    //
+    //     // Text box behind it, sized to the text
+    //     Vector2 textSize = tmp.GetRenderedValues(false);
+    //     var boxObj = new GameObject("Box");
+    //     boxObj.transform.SetParent(root.transform, false);
+    //     var box = boxObj.AddComponent<SpriteRenderer>();
+    //     box.sprite = GetBoxSprite();
+    //     box.drawMode = SpriteDrawMode.Sliced;
+    //     box.size = textSize + popupPadding * 2f;
+    //     box.sortingOrder = popupSortingOrder;
+    //
+    //     return root;
+    // }
+    //
+    // /// <summary>Tiny 9-sliced pixel box: 1px border, clipped corners, stretchable middle.</summary>
+    // private Sprite GetBoxSprite()
+    // {
+    //     Color32 fill = popupBoxColor, border = popupBorderColor;
+    //     if (boxSprite != null && boxSpriteFill.Equals(fill) && boxSpriteBorder.Equals(border))
+    //         return boxSprite;
+    //
+    //     const int size = 6;
+    //     var tex = new Texture2D(size, size, TextureFormat.RGBA32, false)
+    //     {
+    //         filterMode = FilterMode.Point,
+    //         wrapMode = TextureWrapMode.Clamp,
+    //         name = "PopupBox"
+    //     };
+    //
+    //     Color32 clear = new Color32(0, 0, 0, 0);
+    //     for (int y = 0; y < size; y++)
+    //     {
+    //         for (int x = 0; x < size; x++)
+    //         {
+    //             bool edgeX = x == 0 || x == size - 1;
+    //             bool edgeY = y == 0 || y == size - 1;
+    //             Color32 c = edgeX && edgeY ? clear : (edgeX || edgeY ? border : fill);
+    //             tex.SetPixel(x, y, c);
+    //         }
+    //     }
+    //     tex.Apply();
+    //
+    //     float ppu = 1f / Mathf.Max(0.001f, popupBoxPixelSize);
+    //     boxSprite = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), ppu,
+    //                               0, SpriteMeshType.FullRect, new Vector4(2, 2, 2, 2));
+    //     boxSpriteFill = fill;
+    //     boxSpriteBorder = border;
+    //     return boxSprite;
+    // }
 }

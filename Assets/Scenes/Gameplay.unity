@@ -355,6 +355,7 @@ MonoBehaviour:
   serveHoldHeight: 1
   pointResetDelay: 1
   resetSpecialsEachPoint: 1
+  maxSpeedMultiplier: 4
 --- !u!1 &228227364
 GameObject:
   m_ObjectHideFlags: 0
@@ -385,20 +386,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::match_effects
   ball: {fileID: 0}
-  cam: {fileID: 0}
-  slowMoScale: 0.15
-  slowMoLeadTime: 0.15
-  releaseHeight: 0.6
-  maxSlowMoTime: 1.5
-  slowDownDuration: 0.08
-  speedUpDuration: 0.2
-  zoomAmount: 0.55
-  zoomInDuration: 0.12
-  zoomOutDuration: 0.25
-  impactPrefab: {fileID: 0}
+  impactPrefab: {fileID: 5437342976166536801, guid: fa4c3bda3fad7964cb68f9d4ebdfa27d, type: 3}
   impactAnimation: impact
   impactOnEveryBounce: 0
   impactOffset: {x: 0, y: 0}
+  matchBallScale: 1
+  drawInFrontOfBall: 1
+  fallbackFps: 12
   impactMaxLifetime: 2
 --- !u!4 &228227366
 Transform:
@@ -603,24 +597,11 @@ MonoBehaviour:
   readyColor: {r: 1, g: 0.35, b: 0.85, a: 1}
   fillSpeed: 1.5
   sortingOrderOffset: 1
+  drainDuration: 0.6
   burstScale: 1.5
   burstDuration: 0.35
   pulseSpeed: 6
   pulseAmount: 0.08
-  popupPrefab: {fileID: 7050880383630519442, guid: 52981b6fefab81a4fa119b1631893407, type: 3}
-  popupCanvasScale: 0.02
-  popupMessage: bounce back UP!
-  popupFont: {fileID: 11400000, guid: 8b128c60a0177c441b1ad40cbd7813bc, type: 2}
-  popupFontSize: 20
-  popupTextColor: {r: 1, g: 1, b: 1, a: 1}
-  popupBoxColor: {r: 0.12, g: 0.1, b: 0.25, a: 0.9}
-  popupBorderColor: {r: 1, g: 0.85, b: 0.2, a: 1}
-  popupBoxPixelSize: 0.07
-  popupPadding: {x: 0.25, y: 0.12}
-  popupOffset: {x: 0, y: 1.5}
-  popupLifetime: 1
-  popupRise: 0.75
-  popupSortingOrder: 100
 --- !u!114 &336861125
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -638,7 +619,7 @@ MonoBehaviour:
   cutsceneDuration: 1.5
   poseSprite: {fileID: 0}
   poseDuration: 0.75
-  ballSpeedMultiplier: 1.5
+  ballSpeedMultiplier: 1.65
 --- !u!1 &519420028
 GameObject:
   m_ObjectHideFlags: 0
@@ -1286,8 +1267,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::player_bot
   reactionDelay: 0.15
   serveDelay: 0.8
-  positionError: 0.4
-  missChance: 0.05
+  positionError: 0
+  missChance: 0
   aimChance: 0.5
   deadZone: 0.08
   fullSpeedDistance: 0.4

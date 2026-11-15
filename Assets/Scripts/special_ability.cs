@@ -31,7 +31,8 @@ public class special_ability : MonoBehaviour
     [SerializeField] private float poseDuration = 0.75f;
 
     [Header("Ball")]
-    [Tooltip("Ball speed after the special (1.5 = 50% faster). It stays at least this fast until the match resets.")]
+    [Tooltip("Each special multiplies the ball's speed by this (1.5 = 50% faster). Stacks if specials happen again " +
+             "before the reset; the ball never drops below its boosted speed until then.")]
     [SerializeField] private float ballSpeedMultiplier = 1.5f;
 
     /// <summary>True while the time-stop sequence is running.</summary>
@@ -118,7 +119,7 @@ public class special_ability : MonoBehaviour
         }
 
         // 4. Resume with a faster ball.
-        if (player.Ball != null) player.Ball.RaiseSpeedFloor(ballSpeedMultiplier);
+        if (player.Ball != null) player.Ball.StackSpeedBoost(ballSpeedMultiplier);
         match_effects.Instance.ResumeTime();
 
         IsPlaying = false;

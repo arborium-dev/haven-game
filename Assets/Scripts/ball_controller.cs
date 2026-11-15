@@ -78,6 +78,10 @@ public class ball_controller : MonoBehaviour
              "OFF: they only reset when ResetMatch() is called.")]
     [SerializeField] private bool resetSpecialsEachPoint = true;
 
+    [Header("Special Speed")]
+    [Tooltip("Specials stack the ball's speed (1.5x, 2.25x, ...). It never goes faster than this many times normal.")]
+    [SerializeField] private float maxSpeedMultiplier = 4f;
+
     /// <summary>Fires when a point ends. Argument is the winner (can be null if there's no opponent).</summary>
     public event Action<player_movemen> OnPointScored;
     /// <summary>Fires when the ball hits the table. Argument is the impact speed.</summary>
@@ -193,12 +197,13 @@ public class ball_controller : MonoBehaviour
     }
 
     /// <summary>
-    /// Speeds the ball up to at least <paramref name="multiplier"/> times normal speed.
+    /// Stacks a special's speed boost onto the ball: each call multiplies its speed
+    /// (1.5x, then 2.25x, then 3.375x...), capped at Max Speed Multiplier.
     /// This becomes the ball's lowest speed until the match (or point) resets.
     /// </summary>
-    public void RaiseSpeedFloor(float multiplier)
+    public void StackSpeedBoost(float multiplier)
     {
-        speedFloor = Mathf.Max(speedFloor, multiplier);
+        speedFloor = Mathf.Min(speedFloor * Mathf.Max(1f, multiplier), Mathf.Max(1f, maxSpeedMultiplier));
     }
 
     /// <summary>
@@ -423,26 +428,6 @@ public class ball_controller : MonoBehaviour
             }
         }
         return false;
-    }
-
-    /// <summary>
-    /// If the ball is in play and will next come down ON the table, gives how many real seconds until it
-    /// touches down (at the current speed, ignoring slow-mo) and where. False if it'll miss the table.
-    /// </summary>
-    public bool PredictTableContact(out float realSeconds, out Vector2 contactPoint)
-    {
-        realSeconds = 0f;
-        contactPoint = GroundPosition;
-        if (State != BallState.InPlay || height < 0f) return false;
-
-        // Solve height + vy*t - 0.5*g*t^2 = 0 for the next touchdown.
-        float vy = verticalVelocity;
-        float t = (vy + Mathf.Sqrt(vy * vy + 2f * gravity * height)) / gravity;
-        contactPoint = GroundPosition + groundVelocity * t;
-        if (!IsOverTable(contactPoint)) return false;
-
-        realSeconds = t / speedFloor;
-        return true;
     }
 
     private Vector2 ToVisual(Vector2 ground, float h) => ground + new Vector2(0f, h * heightToScreen + ballRadius);
