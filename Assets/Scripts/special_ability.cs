@@ -54,6 +54,9 @@ public class special_ability : MonoBehaviour
     /// <summary>True while the time-stop sequence is running.</summary>
     public bool IsPlaying { get; private set; }
 
+    /// <summary>How much this special speeds the ball up (used to check the super can still be returned).</summary>
+    public float BallSpeedMultiplier => ballSpeedMultiplier;
+
     private player_movemen player;
     private SpriteRenderer spriteRenderer;
     private Sprite spriteBeforePose;

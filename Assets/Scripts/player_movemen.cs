@@ -73,9 +73,31 @@ public class player_movemen : MonoBehaviour
     [Range(0f, 1f)]
     [SerializeField] private float barelyHitGainMultiplier = 0.25f;
 
+    [Header("Super Shot Aim (moving up = top diagonal, still = middle, moving down = bottom diagonal)")]
+    [Tooltip("How deep supers aim: 0 = just past the net, 1 = the far end (inside the safe zone).")]
+    [Range(0f, 1f)]
+    [SerializeField] private float superDepth = 0.9f;
+    [Tooltip("Random wobble in how deep it lands (0-1 of the half). Small = consistent.")]
+    [Range(0f, 0.5f)]
+    [SerializeField] private float superDepthVariation = 0.08f;
+    [Tooltip("Random wobble up/down around the aimed corner or middle (world units). Small = consistent.")]
+    [SerializeField] private float superSideVariation = 0.35f;
+    [Tooltip("Pulls the diagonal aim from the corner toward the middle of the table (0 = right at the corner, " +
+             "1 = dead center).")]
+    [Range(0f, 1f)]
+    [SerializeField] private float superCornerPull = 0.35f;
+    [Tooltip("Steer each super so the other player can always reach it in time from where they're standing.")]
+    [SerializeField] private bool keepSupersReturnable = true;
+    [Tooltip("Safety margin for that: the fraction of the receiver's full reach they're expected to use (lower = easier).")]
+    [Range(0.3f, 1f)]
+    [SerializeField] private float superReturnSafety = 0.8f;
+
     [Header("Hit Sounds (leave empty for no sound)")]
-    [Tooltip("Played on every hit that isn't a special (normal hits, barely hits, serves).")]
+    [Tooltip("Played on every hit that isn't a special (normal hits, serves, and barely hits if Weak Hit Sound is empty).")]
     [SerializeField] private AudioClip hitSound;
+    [Tooltip("Played on weak (barely) hits, except the one that fills the special meter (that one plays Hit Sound). " +
+             "Empty = weak hits play Hit Sound like everything else.")]
+    [SerializeField] private AudioClip weakHitSound;
     [Tooltip("Played the moment a special is hit.")]
     [SerializeField] private AudioClip specialHitSound;
     [Range(0f, 1f)]
@@ -131,6 +153,8 @@ public class player_movemen : MonoBehaviour
     /// When true the player ignores input (used when the round ends).
     public bool ControlsLocked { get; set; }
     public float SwingDuration => swingDuration;
+    public float MoveSpeed => moveSpeed;
+    public float HitRadius => hitRadius;
 
     /// True when a bot is playing for this player.
     public bool IsBot => BotActive;
@@ -315,8 +339,8 @@ public class player_movemen : MonoBehaviour
                  shotArcHeight,
                  barely ? barelyHitSpeed : normalHitSpeed,
                  slowHit: barely); // too many slow hits in a row and this one dribbles into the net
-        PlayHitSound(hitSound);
 
+        bool wasFull = SpecialIsFull;
         if (barely)
         {
             PlayAnimation(barelyHitAnimation, restart: true);
@@ -327,6 +351,11 @@ public class player_movemen : MonoBehaviour
         {
             AddSpecial(normalHitGain, barely: false);
         }
+
+        // Weak hits get their own sound, unless this was the hit that filled the special meter.
+        bool filledMeter = !wasFull && SpecialIsFull;
+        bool useWeakSound = barely && !filledMeter && weakHitSound != null;
+        PlayHitSound(useWeakSound ? weakHitSound : hitSound);
     }
 
     private void UseSpecialShot(float aim)
@@ -336,11 +365,13 @@ public class player_movemen : MonoBehaviour
         PlayAnimation(specialShotAnimation, restart: true);
         OnSpecialShot?.Invoke();
 
-        // The special lands somewhere random on the opponent's side (inside the safe zone), in the top or bottom
-        // half of the table depending on which way the player is moving (anywhere if they're standing still).
-        // It always travels at normal-hit speed.
+        // The special flies to the far end of the opponent's side: the top diagonal if the player is moving up,
+        // the middle if they're still, the bottom diagonal if moving down, with a little random wobble.
+        // Always at normal-hit speed.
         int half = aim > 0.1f ? 1 : (aim < -0.1f ? -1 : 0);
-        HitBall.Hit(this, HitBall.RandomLandingSpot(Facing, half), shotArcHeight, normalHitSpeed);
+        Vector2 superTarget = GetSuperTarget(half);
+        HitBall.Hit(this, superTarget, shotArcHeight, normalHitSpeed);
+        if (keepSupersReturnable) KeepSuperReturnable(superTarget);
         PlayHitSound(specialHitSound);
 
         // =====================================================================
@@ -359,6 +390,64 @@ public class player_movemen : MonoBehaviour
     /// 1 = just before their end (capped inside the safe zone). Holding up/down aims the shot sideways.
     /// The ball's autocorrect pulls it back toward the middle if this ends up near a side edge.
     /// 
+    /// <summary>
+    /// Where a super aims: the far end of the opponent's side, at the top corner (<paramref name="half"/> = +1,
+    /// moving up), the middle (0, standing still) or the bottom corner (-1, moving down), plus a small wobble.
+    /// Kept inside the safe landing zone.
+    /// </summary>
+    private Vector2 GetSuperTarget(int half)
+    {
+        Rect zone = HitBall.SafeLandingZone(Facing);
+
+        float depth = Mathf.Clamp01(superDepth + UnityEngine.Random.Range(-superDepthVariation, superDepthVariation));
+        float x = HitBall.LandingXAtDepth(Facing, depth);
+
+        float cornerY = half > 0 ? zone.yMax : half < 0 ? zone.yMin : zone.center.y;
+        float aimY = Mathf.Lerp(cornerY, zone.center.y, superCornerPull); // a little in from the corner
+        float y = Mathf.Clamp(aimY + UnityEngine.Random.Range(-superSideVariation, superSideVariation), zone.yMin, zone.yMax);
+
+        return new Vector2(x, y);
+    }
+
+    /// <summary>
+    /// Makes sure the other player can actually return a super: predicts where (and when) the ball will pass
+    /// their paddle, including the speed boost that kicks in after the special, and if they couldn't get there
+    /// in time from where they're standing, steers the landing spot toward them and re-aims (a few tries).
+    /// </summary>
+    private void KeepSuperReturnable(Vector2 target)
+    {
+        player_movemen receiver = FindOpponent();
+        if (receiver == null) return;
+
+        float boost = special != null ? Mathf.Max(1f, special.BallSpeedMultiplier) : 1f;
+        Rect zone = HitBall.SafeLandingZone(Facing);
+        Vector2 from = HitBall.GroundPosition;
+
+        for (int i = 0; i < 4; i++)
+        {
+            Vector2 paddle = receiver.PaddlePoint;
+            if (!HitBall.PredictVisualAtX(paddle.x, out Vector2 passing, out float time)) return;
+
+            time /= boost; // the ball speeds up after the special's cutscene
+            float reach = (receiver.MoveSpeed * time + receiver.HitRadius * 0.8f) * superReturnSafety;
+            float tooFar = Mathf.Abs(passing.y - paddle.y) - reach;
+            if (tooFar <= 0f) return; // reachable
+
+            // Moving the landing spot shifts where it passes the receiver by roughly k times as much.
+            float dx = target.x - from.x;
+            float k = Mathf.Abs(dx) > 0.01f ? Mathf.Max(1f, (paddle.x - from.x) / dx) : 1f;
+            target.y = Mathf.Clamp(target.y - Mathf.Sign(passing.y - paddle.y) * tooFar / k, zone.yMin, zone.yMax);
+            HitBall.Hit(this, target, shotArcHeight, normalHitSpeed);
+        }
+    }
+
+    private player_movemen FindOpponent()
+    {
+        foreach (player_movemen p in FindObjectsByType<player_movemen>())
+            if (p != this && p.Ball == ball) return p;
+        return null;
+    }
+
     private Vector2 GetShotTarget(float aim, float depth)
     {
         float x = HitBall.LandingXAtDepth(Facing, depth);

@@ -7,6 +7,21 @@ public static class game_settings
     private const string CutscenesKey = "cutscenes_enabled";
     private const string TutorialKey = "tutorial_enabled";
     private const string Player2BotKey = "player2_bot";
+    private const string SplitMusicKey = "split_music";
+
+    /// <summary>
+    /// OFF: one song for the whole game (the music plays as set up in the scene).
+    /// ON: separate tracks for the tutorial, the main game, and after a special has been used (see music_manager).
+    /// </summary>
+    public static bool SplitMusic
+    {
+        get => PlayerPrefs.GetInt(SplitMusicKey, 0) == 1;
+        set
+        {
+            PlayerPrefs.SetInt(SplitMusicKey, value ? 1 : 0);
+            PlayerPrefs.Save();
+        }
+    }
 
     /// When on, Player 2 is played by the bot. When off, Player 2 is a second human (arrow keys + Enter).
     public static bool Player2IsBot

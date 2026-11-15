@@ -36,7 +36,6 @@ public class tutorial_manager : MonoBehaviour
     [SerializeField] private int hitsNeeded = 1;
 
     [Header("Practice Balls")]
-    [SerializeField] private float practiceArcHeight = 2f;
     [Tooltip("Practice ball speed (1 = normal). A bit slow makes learning easier.")]
     [SerializeField] private float practiceSpeed = 0.8f;
     [Tooltip("Where practice balls land on the player's half: 0 = by the net, 1 = by the player's end.")]
@@ -48,6 +47,16 @@ public class tutorial_manager : MonoBehaviour
     [Tooltip("Returned balls are removed when they reach the center of the screen. This is a safety limit in case " +
              "one never gets there (seconds after the hit).")]
     [SerializeField] private float returnedBallLifetime = 2f;
+    [Tooltip("How high up the screen practice balls appear (0 = bottom, 0.5 = middle, 1 = top). " +
+             "They only fall from there, so they never rise into the panels.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float spawnScreenHeight = 0.5f;
+    [Tooltip("How high above the table a practice ball starts (it falls from here). Higher = longer, gentler drop.")]
+    [SerializeField] private float spawnDropHeight = 2.5f;
+    [Tooltip("Practice balls always land at least this far lower on screen than where they appeared.")]
+    [SerializeField] private float minimumDrop = 0.5f;
+    [Tooltip("If the spawn point would be under a tutorial panel, it's moved down to stay this far below it.")]
+    [SerializeField] private float panelClearance = 0.3f;
 
     [Header("Text")]
     [SerializeField] private string moveTitle = "MOVE";
@@ -260,25 +269,67 @@ public class tutorial_manager : MonoBehaviour
         }
     }
 
-    /// Throws a practice ball from the center of the screen so it lands on the player's half.
+    /// <summary>
+    /// Drops a practice ball from the middle of the screen: it appears there, then only falls (never rises),
+    /// travelling down onto the player's half of the table.
+    /// </summary>
     private void Launch(ball_controller pb, player_movemen p, bool easyAim)
     {
         Bounds table = ball.TableBounds;
         int side = p.Side; // -1 = player is on the left
-        const float fromHeight = 1f;
+        float lowestY = table.min.y + 0.3f;
+        float radius = pb.VisualPosition.y - pb.GroundPosition.y - pb.Height;
 
-        // Appears in the middle of the screen (nudged a hair onto this player's side so it never crosses
-        // into the other half), lifted so the ball itself shows at the screen's center.
-        float fromX = CenterX() + side * 0.1f;
-        float fromY = Mathf.Clamp(CenterY() - fromHeight, table.min.y + 0.5f, table.max.y - 0.5f);
+        // Where the ball appears on screen: the middle (kept just under the panels if they'd overlap it).
+        float startY = Mathf.Min(ViewportToWorldY(spawnScreenHeight), PanelBottomWorldY() - panelClearance - 2f * radius);
 
+        // It starts high above a spot on the table so that it SHOWS at startY, then falls from there.
+        float fromHeight = spawnDropHeight;
+        float fromY = startY - fromHeight - radius;
+        if (fromY < lowestY)
+        {
+            fromY = lowestY;
+            fromHeight = Mathf.Max(0.5f, startY - radius - fromY);
+        }
+        float fromX = CenterX() + side * 0.1f; // nudged onto this player's side so it never crosses over
+
+        // Lands on the player's half, lower on screen than where it appeared, so it travels downward.
         float depth = UnityEngine.Random.Range(landingDepthRange.x, landingDepthRange.y);
         float targetX = ball.LandingXAtDepth(side, depth);
         float targetY = easyAim
             ? p.PaddlePoint.y + UnityEngine.Random.Range(-easyAimSpread, easyAimSpread)
             : UnityEngine.Random.Range(table.min.y, table.max.y); // (autocorrect keeps it off the edges)
+        targetY = Mathf.Clamp(targetY, lowestY, Mathf.Max(lowestY, startY - minimumDrop));
 
-        pb.LaunchPractice(new Vector2(fromX, fromY), fromHeight, new Vector2(targetX, targetY), practiceArcHeight, practiceSpeed);
+        // Arc = just above where it starts, so it never rises: it only drops.
+        float arc = fromHeight + 0.05f;
+        pb.LaunchPractice(new Vector2(fromX, fromY), fromHeight, new Vector2(targetX, targetY), arc, practiceSpeed);
+    }
+
+    /// <summary>World Y of the lowest visible tutorial panel's bottom edge (infinity if none are showing).</summary>
+    private float PanelBottomWorldY()
+    {
+        Camera cam = Camera.main;
+        float lowest = float.PositiveInfinity;
+        if (cam == null) return lowest;
+
+        var corners = new Vector3[4];
+        foreach (Panel panel in panels)
+        {
+            if (panel.root == null || panel.fadeAlpha <= 0f) continue;
+            panel.root.GetWorldCorners(corners); // screen pixels (overlay canvas)
+            Vector3 world = cam.ScreenToWorldPoint(new Vector3(corners[0].x, corners[0].y, Mathf.Abs(cam.transform.position.z)));
+            lowest = Mathf.Min(lowest, world.y);
+        }
+        return lowest;
+    }
+
+    /// <summary>World Y at a height on screen (0 = bottom, 1 = top).</summary>
+    private float ViewportToWorldY(float viewportY)
+    {
+        Camera cam = Camera.main;
+        if (cam == null) return ball.TableBounds.center.y;
+        return cam.ViewportToWorldPoint(new Vector3(0.5f, viewportY, Mathf.Abs(cam.transform.position.z))).y;
     }
 
     /// The middle of the screen in world X (falls back to the net if there's no camera).
@@ -286,12 +337,6 @@ public class tutorial_manager : MonoBehaviour
     {
         Camera cam = Camera.main;
         return cam != null ? cam.transform.position.x : ball.NetX;
-    }
-
-    private float CenterY()
-    {
-        Camera cam = Camera.main;
-        return cam != null ? cam.transform.position.y : ball.TableBounds.center.y;
     }
 
     // ---------- UI ----------

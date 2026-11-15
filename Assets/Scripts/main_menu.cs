@@ -14,6 +14,8 @@ public class main_menu : MonoBehaviour
     [SerializeField] private Toggle tutorialToggle;
     [Tooltip("Ticked = Player 2 is a bot. Empty = a copy of your Tutorial toggle is placed underneath it.")]
     [SerializeField] private Toggle player2BotToggle;
+    [Tooltip("Ticked = separate tutorial / main / post-special music. Empty = a copy of the P2 Bot toggle underneath it.")]
+    [SerializeField] private Toggle splitMusicToggle;
 
     [Header("Scenes")]
     [SerializeField] private string gameSceneName = "Gameplay";
@@ -25,6 +27,7 @@ public class main_menu : MonoBehaviour
     [SerializeField] private string cutscenesLabel = "CUTSCENES";
     [SerializeField] private string tutorialLabel = "TUTORIAL";
     [SerializeField] private string player2BotLabel = "P2 BOT";
+    [SerializeField] private string splitMusicLabel = "SPLIT MUSIC";
     [Tooltip("Gap between the Cutscenes toggle and the Tutorial toggle under it.")]
     [SerializeField] private float toggleSpacing = 20f;
     [SerializeField] private Vector2 startButtonPosition = new Vector2(0f, -120f);
@@ -56,6 +59,11 @@ public class main_menu : MonoBehaviour
             Toggle above = tutorialToggle != null ? tutorialToggle : cutscenesToggle;
             if (above != null) player2BotToggle = CopyToggleBelow(above, player2BotLabel);
         }
+        if (splitMusicToggle == null)
+        {
+            Toggle above = player2BotToggle != null ? player2BotToggle : (tutorialToggle != null ? tutorialToggle : cutscenesToggle);
+            if (above != null) splitMusicToggle = CopyToggleBelow(above, splitMusicLabel);
+        }
 
         if (cutscenesToggle != null)
         {
@@ -75,6 +83,12 @@ public class main_menu : MonoBehaviour
             player2BotToggle.onValueChanged.AddListener(on => game_settings.Player2IsBot = on);
         }
 
+        if (splitMusicToggle != null)
+        {
+            splitMusicToggle.SetIsOnWithoutNotify(game_settings.SplitMusic);
+            splitMusicToggle.onValueChanged.AddListener(on => game_settings.SplitMusic = on);
+        }
+
         if (startButton != null)
         {
             startButton.onClick.AddListener(StartGame);
@@ -89,6 +103,7 @@ public class main_menu : MonoBehaviour
         if (cutscenesToggle != null) cutscenesToggle.interactable = false;
         if (tutorialToggle != null) tutorialToggle.interactable = false;
         if (player2BotToggle != null) player2BotToggle.interactable = false;
+        if (splitMusicToggle != null) splitMusicToggle.interactable = false;
 
         // The wave grows out from the Start button.
         Vector2 origin = new Vector2(0.5f, 0.5f);

@@ -567,7 +567,14 @@ MonoBehaviour:
   barelyHitThreshold: 0.523
   normalHitGain: 20
   barelyHitGainMultiplier: 0.5
+  superDepth: 0.9
+  superDepthVariation: 0.08
+  superSideVariation: 0.35
+  superCornerPull: 0.35
+  keepSupersReturnable: 1
+  superReturnSafety: 0.8
   hitSound: {fileID: 8300000, guid: 30d7fd06cb4e9ae4fbbf602bd8c1e114, type: 3}
+  weakHitSound: {fileID: 8300000, guid: 5cf87cbd07a77ab4fb9fef7f5ec22398, type: 3}
   specialHitSound: {fileID: 8300000, guid: 30d7fd06cb4e9ae4fbbf602bd8c1e114, type: 3}
   hitSoundVolume: 1
   animator: {fileID: 0}
@@ -790,12 +797,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::tutorial_manager
   moveHoldNeeded: 0.3
   hitsNeeded: 1
-  practiceArcHeight: 2
   practiceSpeed: 0.8
   landingDepthRange: {x: 0.55, y: 0.85}
   easyAimSpread: 0.6
   delayBetweenBalls: 0.6
   returnedBallLifetime: 1.2
+  spawnScreenHeight: 0.5
+  spawnDropHeight: 2.5
+  minimumDrop: 0.5
+  panelClearance: 0.3
   moveTitle: MOVE
   hitTitle: HIT
   specialTitle: SPECIAL
@@ -1222,6 +1232,7 @@ GameObject:
   m_Component:
   - component: {fileID: 840491765}
   - component: {fileID: 840491764}
+  - component: {fileID: 840491766}
   m_Layer: 0
   m_Name: msuic
   m_TagString: Untagged
@@ -1341,6 +1352,24 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &840491766
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 840491763}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 71a12b88138bae748a2a8c58f65c911a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::music_manager
+  musicSource: {fileID: 0}
+  tutorialMusic: {fileID: 8300000, guid: 4baf1424f151c8144945403efee15f99, type: 3}
+  mainMusic: {fileID: 8300000, guid: fbc9f4a296521f41ab2a8054a429538e, type: 3}
+  postAbilityMusic: {fileID: 8300000, guid: 2e63edfa9a6ede74095f08ab48ef7575, type: 3}
+  winMusic: {fileID: 8300000, guid: 2e6fa1618ff636144ae6b828c85ed7c9, type: 3}
+  fadeTime: 0.8
 --- !u!1 &848922421
 GameObject:
   m_ObjectHideFlags: 0
@@ -1892,7 +1921,14 @@ MonoBehaviour:
   barelyHitThreshold: 0.523
   normalHitGain: 20
   barelyHitGainMultiplier: 0.5
+  superDepth: 0.9
+  superDepthVariation: 0.08
+  superSideVariation: 0.35
+  superCornerPull: 0.35
+  keepSupersReturnable: 1
+  superReturnSafety: 0.8
   hitSound: {fileID: 8300000, guid: 30d7fd06cb4e9ae4fbbf602bd8c1e114, type: 3}
+  weakHitSound: {fileID: 8300000, guid: 5cf87cbd07a77ab4fb9fef7f5ec22398, type: 3}
   specialHitSound: {fileID: 8300000, guid: 30d7fd06cb4e9ae4fbbf602bd8c1e114, type: 3}
   hitSoundVolume: 1
   animator: {fileID: 0}
@@ -2202,7 +2238,7 @@ VideoPlayer:
   m_TargetAudioSources:
   - {fileID: 0}
   m_DirectAudioVolumes:
-  - 1
+  - 0.716
   m_Url: 
   m_EnabledAudioTracks: 01o
   m_DirectAudioMutes: 00o
