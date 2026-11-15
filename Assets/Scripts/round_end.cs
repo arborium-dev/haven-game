@@ -2,7 +2,6 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-/// <summary>
 /// Plays when a player reaches the winning score:
 ///   1. Both players stop responding to input.
 ///   2. The winner glides to the center of the screen while the loser fades out.
@@ -11,8 +10,7 @@ using UnityEngine.InputSystem;
 ///   4. Once the winner is centered, any key / click / controller button returns to the menu
 ///      (the winner fades into the wave, then the normal wave transition loads the menu).
 ///
-/// Triggered by ball_controller. Optional to place in the scene to tweak it; created automatically if missing.
-/// </summary>
+/// CAN CREATE ITSELF if no instance exsists
 public class round_end : MonoBehaviour
 {
     private static round_end instance;

@@ -1,7 +1,10 @@
+// this script is half vibe-sloped, half stolen from the internet
+
 using System;
 using UnityEngine;
 
-/// <summary>
+
+
 /// Animated, pixelated retro "groovy swirl" background.
 ///
 /// How it works: every update it draws a small low-res texture (e.g. 192 px wide) in code. Each pixel's
@@ -11,7 +14,7 @@ using UnityEngine;
 ///
 /// Setup: add this to any object in the scene (an empty "Background" works). It fills the main camera's view
 /// automatically and draws behind everything.
-/// </summary>
+
 public class groovy_background : MonoBehaviour
 {
     [Serializable]

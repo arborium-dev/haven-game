@@ -2,13 +2,10 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 
-/// <summary>
-/// Groovy wave wipe for cutscenes: a single pixel-art wave (solid color with a few colored ripples on its
+
+/// wave wipe for cutscenes: a single pixel-art wave (solid color with a few colored ripples on its
 /// leading edge) swirls out from a point and grows over EVERYTHING (game, background and UI), then shrinks
 /// back the other way. Runs on real time, so it works while time is stopped.
-///
-/// Used by special_ability. Optional to place in the scene to tweak it; it's created automatically if missing.
-/// </summary>
 public class cutscene_transition : MonoBehaviour
 {
     private static cutscene_transition instance;
@@ -53,10 +50,10 @@ public class cutscene_transition : MonoBehaviour
     [Tooltip("Pixels across the screen. Lower = chunkier.")]
     [SerializeField] private int pixelWidth = 160;
 
-    /// <summary>True while a scene change is in progress.</summary>
+    /// True while a scene change is in progress.
     public bool IsChangingScene { get; private set; }
 
-    /// <summary>True while any part of the wave is on screen.</summary>
+    /// True while any part of the wave is on screen.
     public bool IsVisible => image != null && image.enabled;
 
     private Canvas canvas;
@@ -80,25 +77,25 @@ public class cutscene_transition : MonoBehaviour
         BuildOverlay();
     }
 
-    /// <summary>
+    /// 
     /// Grows the wave out from <paramref name="viewportOrigin"/> (0-1 screen position) until it covers everything.
     /// <paramref name="customDuration"/> overrides the normal speed (e.g. a slower victory wave).
-    /// </summary>
+    /// 
     public IEnumerator Cover(Vector2 viewportOrigin, float customDuration = -1f)
     {
         origin = viewportOrigin;
         yield return Animate(0f, 1f, customDuration);
     }
 
-    /// <summary>Shrinks the wave back to where it came from, revealing the game.</summary>
+    /// Shrinks the wave back to where it came from, revealing the game.
     public IEnumerator Uncover(float customDuration = -1f)
     {
         yield return Animate(1f, 0f, customDuration);
     }
 
-    /// <summary>
+    /// 
     /// Wave covers the screen, the scene loads underneath it, then the wave pulls back to reveal the new scene.
-    /// </summary>
+    /// 
     public void TransitionToScene(string sceneName, Vector2 viewportOrigin)
     {
         if (IsChangingScene) return;
@@ -120,17 +117,17 @@ public class cutscene_transition : MonoBehaviour
         IsChangingScene = false;
     }
 
-    /// <summary>Normal mode: the wave draws on top of everything, UI included.</summary>
+    /// Normal mode: the wave draws on top of everything, UI included.
     public void DrawOverEverything()
     {
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
         canvas.sortingOrder = 32000;
     }
 
-    /// <summary>
+    /// 
     /// Draws the wave in the game world just under <paramref name="sortingOrder"/>, so sprites above that order
     /// (like the round winner) stay visible on top of it. Screen-overlay UI also stays on top.
-    /// </summary>
+    /// 
     public void DrawBehind(Camera cam, int sortingLayerID, int sortingOrder)
     {
         canvas.renderMode = RenderMode.ScreenSpaceCamera;
@@ -140,13 +137,13 @@ public class cutscene_transition : MonoBehaviour
         canvas.sortingOrder = sortingOrder;
     }
 
-    /// <summary>Instantly fully covered (e.g. right as a cutscene ends, before pulling back).</summary>
+    /// Instantly fully covered (e.g. right as a cutscene ends, before pulling back).
     public void ShowCovered() => SetCoverage(1f);
 
-    /// <summary>Instantly gone (e.g. once the cutscene is showing, or on cancel).</summary>
+    /// Instantly gone (e.g. once the cutscene is showing, or on cancel).
     public void HideInstant() => SetCoverage(0f);
 
-    /// <summary>The canvas the wave is drawn on (so other code can leave it alone when hiding UI).</summary>
+    /// The canvas the wave is drawn on (so other code can leave it alone when hiding UI).
     public Canvas OverlayCanvas => canvas;
 
     private IEnumerator Animate(float from, float to, float customDuration = -1f)

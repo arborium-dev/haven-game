@@ -1,13 +1,11 @@
 using UnityEngine;
 
-/// <summary>
 /// Match-wide effects:
 ///  - Full time stop while a special's cutscene plays (used by special_ability).
 ///  - Plays an "impact" animation at the ball when it hits the table (after a special, or every bounce).
 ///  - The first table bounce after a special leaves a subtle scorch mark that stays for the rest of the match.
 ///
 /// Optional to place in the scene (to tweak settings). If it's missing, one is created automatically.
-/// </summary>
 public class match_effects : MonoBehaviour
 {
     private static match_effects instance;
@@ -55,7 +53,7 @@ public class match_effects : MonoBehaviour
     [Tooltip("Size of the generated mark in pixels (matches the ball's pixel size).")]
     [SerializeField] private Vector2Int markPixelSize = new Vector2Int(14, 6);
 
-    /// <summary>True while a special has time completely stopped.</summary>
+    /// True while a special has time completely stopped.
     public bool TimeStopped { get; private set; }
 
     private ball_controller subscribedBall;
@@ -101,7 +99,7 @@ public class match_effects : MonoBehaviour
         Time.timeScale = 1f;
     }
 
-    /// <summary>Back to normal time immediately (used when a point / match resets).</summary>
+    /// Back to normal time immediately (used when a point / match resets).
     public void ResetTime()
     {
         ResumeTime();
@@ -110,10 +108,10 @@ public class match_effects : MonoBehaviour
 
     // ---------- Table marks ----------
 
-    /// <summary>The next table bounce will leave a mark. Called when a special finishes.</summary>
+    /// The next table bounce will leave a mark. Called when a special finishes.
     public void QueueTableMark() => markPending = true;
 
-    /// <summary>Removes every mark from the table (used when a whole new match starts).</summary>
+    /// Removes every mark from the table (used when a whole new match starts).
     public void ClearTableMarks()
     {
         markPending = false;
@@ -165,7 +163,7 @@ public class match_effects : MonoBehaviour
         sr.sortingOrder = order;
     }
 
-    /// <summary>A squashed, ragged pixel blob with a few soot specks around it. Every mark is a bit different.</summary>
+    /// A squashed, ragged pixel blob with a few soot specks around it. Every mark is a bit different.
     private static Sprite CreateScorchSprite(int w, int h, float ppu)
     {
         w = Mathf.Max(4, w);
@@ -232,7 +230,7 @@ public class match_effects : MonoBehaviour
         if (ball.IsPowered || impactOnEveryBounce)
             SpawnImpact(ball.VisualPosition + impactOffset);
     }
-
+// this code is some bs
     private void SpawnImpact(Vector2 pos)
     {
         if (impactPrefab == null)

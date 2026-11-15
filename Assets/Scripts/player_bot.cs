@@ -1,3 +1,5 @@
+// half vibe slopped, half by hand
+
 using UnityEngine;
 
 /// <summary>
@@ -69,7 +71,7 @@ public class player_bot : MonoBehaviour
         Vertical = 0f;
         hitQueued = false;
     }
-
+    
     private void Update()
     {
         ball_controller ball = player.Ball;
@@ -132,7 +134,7 @@ public class player_bot : MonoBehaviour
     private float TrackIncoming(ball_controller ball)
     {
         Vector2 paddle = player.PaddlePoint;
-
+// say wallahi bro
         if (reactionTimer > 0f)
         {
             reactionTimer -= Time.deltaTime;

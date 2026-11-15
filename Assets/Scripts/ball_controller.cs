@@ -1,8 +1,9 @@
+// ball
+
 using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-/// <summary>
 /// 2.5D ping pong ball.
 ///
 /// This object's position is the ball's spot ON THE TABLE (where its drop shadow is).
@@ -12,7 +13,6 @@ using UnityEngine;
 /// Setup: just put this on an object with the ball's SpriteRenderer. On play it automatically
 /// moves the sprite onto a "Visual" child and creates a "Shadow" child. (Or make those
 /// children yourself and assign them below.)
-/// </summary>
 public class ball_controller : MonoBehaviour
 {
     public enum BallState { Held, InPlay, Dead }
@@ -92,6 +92,14 @@ public class ball_controller : MonoBehaviour
     [Range(0f, 1f)]
     [SerializeField] private float shadowMinAlpha = 0.4f;
 
+    [Header("Table Bounce Sound (leave empty for no sound)")]
+    [Tooltip("Played when the ball hits the table.")]
+    [SerializeField] private AudioClip tableBounceSound;
+    [Range(0f, 1f)]
+    [SerializeField] private float tableBounceVolume = 1f;
+    [Tooltip("Bounces softer than this are silent, so a rolling / settling ball doesn't buzz.")]
+    [SerializeField] private float minBounceSpeedForSound = 1f;
+
     [Header("Table Impact")]
     [Tooltip("How much the ball squashes when it hits the table (0 = none).")]
     [Range(0f, 0.8f)]
@@ -118,21 +126,21 @@ public class ball_controller : MonoBehaviour
     [Tooltip("Specials stack the ball's speed (1.5x, 2.25x, ...). It never goes faster than this many times normal.")]
     [SerializeField] private float maxSpeedMultiplier = 4f;
 
-    /// <summary>Fires when a point ends. Argument is the winner (can be null if there's no opponent).</summary>
+    /// Fires when a point ends. Argument is the winner (can be null if there's no opponent).
     public event Action<player_movemen> OnPointScored;
-    /// <summary>Fires when the ball hits the table. Argument is the impact speed.</summary>
+    /// Fires when the ball hits the table. Argument is the impact speed.
     public event Action<float> OnBounce;
     public event Action<player_movemen> OnHit;
 
     public BallState State { get; private set; } = BallState.Held;
     public player_movemen Server { get; private set; }
     public player_movemen LastHitter { get; private set; }
-    /// <summary>True once a player has reached Points To Win.</summary>
+    /// True once a player has reached Points To Win.
     public bool RoundOver { get; private set; }
 
-    /// <summary>
+    /// 
     /// While true the ball is hidden and frozen and nobody can serve (used while the tutorial runs).
-    /// </summary>
+    /// 
     public bool WaitingToStart
     {
         get => waitingToStart;
@@ -144,16 +152,16 @@ public class ball_controller : MonoBehaviour
     }
     private bool waitingToStart;
 
-    /// <summary>
+    /// 
     /// Practice balls (tutorial copies) never score or serve. When their rally is over they fire
     /// OnPracticeEnded instead, and whoever spawned them decides what happens next.
-    /// </summary>
+    /// 
     public bool PracticeMode { get; private set; }
     public event Action<ball_controller> OnPracticeEnded;
 
-    /// <summary>How fast the ball moves compared to normal. A special raises this and it never drops back down until a reset.</summary>
+    /// How fast the ball moves compared to normal. A special raises this and it never drops back down until a reset.
     public float SpeedMultiplier => speedFloor;
-    /// <summary>True once a special has sped the ball up. Hits and bounces then cause slow-mo impact frames.</summary>
+    /// True once a special has sped the ball up. Hits and bounces then cause slow-mo impact frames.
     public bool IsPowered => speedFloor > 1.0001f;
     private float speedFloor = 1f;
     private float shotSpeed = 1f;     // this shot's own speed (barely = slow, normal = fast)
@@ -163,17 +171,17 @@ public class ball_controller : MonoBehaviour
     private int slowHitStreak;         // slow (barely) hits in a row this rally, both players
     private bool dribbling;            // a too-weak shot on its way into the net (the net always catches it)
 
-    /// <summary>True while a net ball is rolling back toward the player who hit it, waiting to be rescued.</summary>
+    /// True while a net ball is rolling back toward the player who hit it, waiting to be rescued.
     public bool InNetRebound => netFaulter != null && State == BallState.InPlay;
 
-    /// <summary>True while wall spin is curving the ball back toward the middle.</summary>
+    /// True while wall spin is curving the ball back toward the middle.
     public bool IsSpinning => !Mathf.Approximately(spinAcceleration, 0f);
 
-    /// <summary>The ball's contact point on the table plane (same as the shadow).</summary>
+    /// The ball's contact point on the table plane (same as the shadow).
     public Vector2 GroundPosition => transform.position;
-    /// <summary>Where the ball sprite's center appears on screen (lifted up from the shadow by its height).</summary>
+    /// Where the ball sprite's center appears on screen (lifted up from the shadow by its height).
     public Vector2 VisualPosition => ToVisual(GroundPosition, height);
-    /// <summary>Height above the table. Negative = fallen below table level.</summary>
+    /// Height above the table. Negative = fallen below table level.
     public float Height => height;
     public Vector2 GroundVelocity => groundVelocity;
     public float NetX => TableBounds.center.x;
@@ -198,10 +206,17 @@ public class ball_controller : MonoBehaviour
     private float ballRadius;   // half the ball sprite's height, so its bottom touches the table at height 0
     private float squashTimer;
 
+    private AudioSource sfxSource;
+
     private void Awake()
     {
         SetUpVisual();
         SetUpShadow();
+
+        // 2D sound source for the bounce sound (reuses one if the ball already has it, e.g. practice copies).
+        if (!TryGetComponent(out sfxSource)) sfxSource = gameObject.AddComponent<AudioSource>();
+        sfxSource.playOnAwake = false;
+        sfxSource.spatialBlend = 0f;
     }
 
     private void Start()
@@ -218,7 +233,7 @@ public class ball_controller : MonoBehaviour
 
     // ---------- Practice balls (tutorial) ----------
 
-    /// <summary>Makes a practice copy of this ball (for the tutorial). It's visible and starts with no rally.</summary>
+    /// Makes a practice copy of this ball (for the tutorial). It's visible and starts with no rally.
     public ball_controller SpawnPracticeCopy()
     {
         ball_controller copy = Instantiate(this, transform.parent);
@@ -229,10 +244,10 @@ public class ball_controller : MonoBehaviour
         return copy;
     }
 
-    /// <summary>
+    /// 
     /// Practice only: throws the ball from <paramref name="from"/> (at <paramref name="fromHeight"/>) so it
     /// lands on <paramref name="target"/>, as if an invisible opponent had hit it.
-    /// </summary>
+    /// 
     public void LaunchPractice(Vector2 from, float fromHeight, Vector2 target, float arcHeight, float speedScale)
     {
         transform.position = new Vector3(from.x, from.y, transform.position.z);
@@ -280,11 +295,11 @@ public class ball_controller : MonoBehaviour
 
     // ---------- Hitting ----------
 
-    /// <summary>
+    /// 
     /// Pops the ball up into an arc that peaks at <paramref name="arcHeight"/> above the table
     /// and comes down onto <paramref name="target"/> (a point on the table).
     /// The arc is raised automatically if it wouldn't clear the net.
-    /// </summary>
+    /// 
     /// <param name="speedScale">How fast this particular shot travels (1 = normal). The arc keeps its shape.</param>
     /// <param name="slowHit">A weak (barely) hit. Too many in a row and the next one can't clear the net.</param>
     public void Hit(player_movemen hitter, Vector2 target, float arcHeight, float speedScale = 1f, bool slowHit = false)
@@ -332,11 +347,11 @@ public class ball_controller : MonoBehaviour
         OnHit?.Invoke(hitter);
     }
 
-    /// <summary>
+    /// 
     /// After it lands, a ball keeps going in the same straight line. Angle the shot so that line stays on the
     /// table (Path Side Margin in from the sides) all the way to the receiver's end, so the receiver can always
     /// reach it and it never drifts off a side first. (A sharp diagonal special could do exactly that.)
-    /// </summary>
+    /// 
     private Vector2 KeepPathOnTable(Vector2 from, Vector2 target, player_movemen hitter)
     {
         Bounds b = TableBounds;
@@ -361,10 +376,10 @@ public class ball_controller : MonoBehaviour
         return target;
     }
 
-    /// <summary>
+    /// 
     /// One slow hit too many: a soft lob that comes down right on the net, so it bounces back to the hitter as a
     /// rolling ball they have to roll-save (or lose the point).
-    /// </summary>
+    /// 
     private void DribbleIntoNet(player_movemen hitter, Vector2 from, Vector2 aimedTarget)
     {
         Bounds b = TableBounds;
@@ -381,20 +396,20 @@ public class ball_controller : MonoBehaviour
         groundVelocity = (target - from) / flightTime;
     }
 
-    /// <summary>
+    /// 
     /// Stacks a special's speed boost onto the ball: each call multiplies its speed
     /// (1.5x, then 2.25x, then 3.375x...), capped at Max Speed Multiplier.
     /// This becomes the ball's lowest speed until the match (or point) resets.
-    /// </summary>
+    /// 
     public void StackSpeedBoost(float multiplier)
     {
         speedFloor = Mathf.Min(speedFloor * Mathf.Max(1f, multiplier), Mathf.Max(1f, maxSpeedMultiplier));
     }
 
-    /// <summary>
+    /// 
     /// Hidden assist: if a shot would land too close to an edge of the opponent's half
     /// (sides, far end, or right by the net), nudge the landing spot back toward the middle.
-    /// </summary>
+    /// 
     private Vector2 AutocorrectTarget(Vector2 target, player_movemen hitter)
     {
         if (autocorrectStrength <= 0f) return target;
@@ -406,10 +421,10 @@ public class ball_controller : MonoBehaviour
         return Vector2.Lerp(target, safe, autocorrectStrength);
     }
 
-    /// <summary>
+    /// 
     /// Where shots are allowed to land on the half in direction <paramref name="toward"/> (+1 = right half):
     /// a little in from the net, the far end, and both sides.
-    /// </summary>
+    /// 
     public Rect SafeLandingZone(int toward)
     {
         Bounds b = TableBounds;
@@ -421,10 +436,10 @@ public class ball_controller : MonoBehaviour
         return Rect.MinMaxRect(minX, minY, maxX, maxY);
     }
 
-    /// <summary>
+    /// 
     /// A random spot inside the safe landing zone on the half in direction <paramref name="toward"/>.
     /// <paramref name="upDownHalf"/>: +1 = only the top half of the table, -1 = only the bottom half, 0 = anywhere.
-    /// </summary>
+    /// 
     public Vector2 RandomLandingSpot(int toward, int upDownHalf = 0)
     {
         Rect zone = SafeLandingZone(toward);
@@ -434,10 +449,10 @@ public class ball_controller : MonoBehaviour
         return new Vector2(UnityEngine.Random.Range(zone.xMin, zone.xMax), UnityEngine.Random.Range(yMin, yMax));
     }
 
-    /// <summary>
+    /// 
     /// A landing spot <paramref name="depth"/> of the way from the net (0) to the far end (1) of the safe zone.
     /// Values are capped so shots always land a little in from the net and the table's edge.
-    /// </summary>
+    /// 
     public float LandingXAtDepth(int toward, float depth)
     {
         Rect zone = SafeLandingZone(toward);
@@ -494,9 +509,9 @@ public class ball_controller : MonoBehaviour
         }
     }
 
-    /// <summary>
+    /// 
     /// If the rally keeps hugging one side of the table, slowly add spin that curves the ball back toward the middle.
-    /// </summary>
+    /// 
     private void UpdateWallSpin(float dt)
     {
         Bounds b = TableBounds;
@@ -517,10 +532,10 @@ public class ball_controller : MonoBehaviour
         spinAcceleration = Mathf.MoveTowards(spinAcceleration, target, spinStrength * dt * 2f);
     }
 
-    /// <summary>
+    /// 
     /// A ball sliding / rolling along the table that touches (or hugs) a side edge is pushed back toward the
     /// middle, so it can never slide off a side where nobody can reach it.
-    /// </summary>
+    /// 
     private void SlideAwayFromWalls(Vector2 pos, float h)
     {
         if (h > 0.25f) return; // in the air, not sliding
@@ -572,6 +587,9 @@ public class ball_controller : MonoBehaviour
         verticalVelocity = impactSpeed * bounciness;
         if (verticalVelocity < 0.5f) verticalVelocity = 0f; // settle instead of jittering
         else squashTimer = squashDuration;                  // visible smack on real impacts
+
+        if (tableBounceSound != null && impactSpeed >= minBounceSpeedForSound && !waitingToStart)
+            sfxSource.PlayOneShot(tableBounceSound, tableBounceVolume);
 
         OnBounce?.Invoke(impactSpeed);
 
@@ -640,7 +658,7 @@ public class ball_controller : MonoBehaviour
         }
     }
 
-    /// <summary>Puts the ball on <paramref name="server"/>'s paddle, waiting for them to hit.</summary>
+    /// Puts the ball on <paramref name="server"/>'s paddle, waiting for them to hit.
     public void PrepareServe(player_movemen server)
     {
         Server = server;
@@ -658,10 +676,10 @@ public class ball_controller : MonoBehaviour
         FollowServer();
     }
 
-    /// <summary>
+    /// 
     /// Restarts the match: scores to 0, both special gauges emptied, ball back to normal speed,
     /// time back to normal, and a fresh serve. Call this from your match-over / restart code.
-    /// </summary>
+    /// 
     public void ResetMatch()
     {
         RoundOver = false;
@@ -671,7 +689,7 @@ public class ball_controller : MonoBehaviour
         PrepareServe(firstServer != null ? firstServer : (players.Count > 0 ? players[0] : null));
     }
 
-    /// <summary>Empties every player's special gauge, cancels any special in progress, and returns the ball to normal speed.</summary>
+    /// Empties every player's special gauge, cancels any special in progress, and returns the ball to normal speed.
     public void ResetSpecials()
     {
         foreach (player_movemen p in players)
@@ -701,10 +719,10 @@ public class ball_controller : MonoBehaviour
 
     // ---------- Prediction ----------
 
-    /// <summary>
+    /// 
     /// Simulates ahead (including table bounces) to find where the ball will LOOK like it is
     /// when its shadow reaches world X = <paramref name="x"/>. Returns false if it isn't heading there.
-    /// </summary>
+    /// 
     public bool PredictVisualAtX(float x, out Vector2 visual, out float time, float maxTime = 3f)
     {
         visual = VisualPosition;
@@ -788,7 +806,7 @@ public class ball_controller : MonoBehaviour
         }
     }
 
-    /// <summary>If no visual is assigned, moves this object's sprite onto a "Visual" child so it can be lifted.</summary>
+    /// If no visual is assigned, moves this object's sprite onto a "Visual" child so it can be lifted.
     private void SetUpVisual()
     {
         if (ballVisual == null && TryGetComponent(out SpriteRenderer rootRenderer))
@@ -823,7 +841,7 @@ public class ball_controller : MonoBehaviour
             : 0f;
     }
 
-    /// <summary>If no shadow is assigned, creates a pixel-art ellipse shadow sized to match the ball.</summary>
+    /// If no shadow is assigned, creates a pixel-art ellipse shadow sized to match the ball.
     private void SetUpShadow()
     {
         if (shadow == null)

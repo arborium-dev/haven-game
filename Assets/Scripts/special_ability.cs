@@ -1,3 +1,5 @@
+// some ai, due to time chaanges
+
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;

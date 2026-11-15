@@ -1,3 +1,6 @@
+// this script controlls animations on a specific animation by importing all frames nativly at a set fps.
+// basically i get to ignore fucking animations in unity
+
 using System;
 using System.Collections.Generic;
 using UnityEngine;

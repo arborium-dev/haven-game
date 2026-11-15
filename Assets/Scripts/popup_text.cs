@@ -1,11 +1,13 @@
+// never used
+
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-/// <summary>
+/// 
 /// Animates a world-space popup (like "bounce back UP!"): bounces in, floats up, fades out, then destroys itself.
 /// Fades every TextMeshPro text, UI Image and SpriteRenderer under it, so it works with any popup prefab.
-/// </summary>
+/// 
 public class popup_text : MonoBehaviour
 {
     [SerializeField] private float lifetime = 1f;
@@ -28,7 +30,7 @@ public class popup_text : MonoBehaviour
     private Color[] graphicColors;
     private bool started;
 
-    /// <summary>Starts (or restarts) the popup animation with the given timing.</summary>
+    /// Starts (or restarts) the popup animation with the given timing.
     public void Play(float newLifetime, float newRise)
     {
         lifetime = Mathf.Max(0.05f, newLifetime);

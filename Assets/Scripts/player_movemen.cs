@@ -3,11 +3,9 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Serialization;
 
-/// <summary>
 /// Ping pong player: moves up/down along their end of the table and swings a paddle at the ball.
 /// Works for either side of the table - put one on the left as Player 1 and one on the right as Player 2.
 /// Hitting the ball near the very edge of the paddle's reach (a "barely hit") fills the special gauge.
-/// </summary>
 public class player_movemen : MonoBehaviour
 {
     [Header("Player")]
@@ -75,6 +73,14 @@ public class player_movemen : MonoBehaviour
     [Range(0f, 1f)]
     [SerializeField] private float barelyHitGainMultiplier = 0.25f;
 
+    [Header("Hit Sounds (leave empty for no sound)")]
+    [Tooltip("Played on every hit that isn't a special (normal hits, barely hits, serves).")]
+    [SerializeField] private AudioClip hitSound;
+    [Tooltip("Played the moment a special is hit.")]
+    [SerializeField] private AudioClip specialHitSound;
+    [Range(0f, 1f)]
+    [SerializeField] private float hitSoundVolume = 1f;
+
     [Header("Animation (optional)")]
     [SerializeField] private animation_controller animator;
     [SerializeField] private string idleAnimation = "Idle";
@@ -88,27 +94,27 @@ public class player_movemen : MonoBehaviour
     [Tooltip("Flip the sprite on X when on the right side of the table.")]
     [SerializeField] private bool flipSpriteOnRightSide = true;
 
-    /// <summary>Fires whenever the special gauge changes. Value is 0-1.</summary>
+    /// Fires whenever the special gauge changes. Value is 0-1.
     public event Action<float> OnSpecialChanged;
-    /// <summary>Fires on a barely hit (for everyone, bots included).</summary>
+    /// Fires on a barely hit (for everyone, bots included).
     public event Action OnBarelyHit;
-    /// <summary>Fires when gauge is gained: (from 0-1, to 0-1, was it a barely hit).</summary>
+    /// Fires when gauge is gained: (from 0-1, to 0-1, was it a barely hit).
     public event Action<float, float, bool> OnSpecialGained;
-    /// <summary>Fires the moment the special gauge fills up.</summary>
+    /// Fires the moment the special gauge fills up.
     public event Action OnSpecialReady;
-    /// <summary>Fires when a full gauge is spent on a special shot.</summary>
+    /// Fires when a full gauge is spent on a special shot.
     public event Action OnSpecialShot;
     public event Action OnSwing;
 
     public int PlayerNumber => playerNumber;
-    /// <summary>-1 = left side of the table, +1 = right side.</summary>
+    /// -1 = left side of the table, +1 = right side.
     public int Side { get; private set; }
-    /// <summary>Direction toward the opponent on X (+1 or -1).</summary>
+    /// Direction toward the opponent on X (+1 or -1).
     public int Facing => -Side;
     public float Special { get; private set; }
     public float SpecialNormalized => maxSpecial > 0f ? Special / maxSpecial : 0f;
     public bool SpecialIsFull => Special >= maxSpecial;
-    /// <summary>Bots don't have a special gauge.</summary>
+    /// Bots don't have a special gauge.
     public bool HasSpecialGauge => !BotActive;
     public int Points { get; private set; }
     public bool IsSwinging => swingTimer > 0f;
@@ -118,30 +124,30 @@ public class player_movemen : MonoBehaviour
             ? (Vector2)paddlePoint.position
             : (Vector2)transform.position + new Vector2(paddleOffset.x * Facing, paddleOffset.y);
 
-    /// <summary>Distance from the paddle where normal hits end and barely hits begin.</summary>
+    /// Distance from the paddle where normal hits end and barely hits begin.
     public float BarelyRadius => hitRadius * barelyHitThreshold;
 
     public ball_controller Ball => ball;
-    /// <summary>When true the player ignores input (used when the round ends).</summary>
+    /// When true the player ignores input (used when the round ends).
     public bool ControlsLocked { get; set; }
     public float SwingDuration => swingDuration;
 
-    /// <summary>True when a bot is playing for this player.</summary>
+    /// True when a bot is playing for this player.
     public bool IsBot => BotActive;
     public Key UpKey => upKey;
     public Key DownKey => downKey;
     public Key HitKey => hitKey;
-    /// <summary>The up/down input from the latest frame (-1 to 1).</summary>
+    /// The up/down input from the latest frame (-1 to 1).
     public float LastVertical { get; private set; }
 
-    /// <summary>
+    /// 
     /// Tutorial: swings go at this practice ball instead of the real one. Set to null to go back to the real ball.
-    /// </summary>
+    /// 
     public void SetPracticeBall(ball_controller practice) => practiceBall = practice;
     public ball_controller PracticeBall => practiceBall;
     private ball_controller practiceBall;
 
-    /// <summary>The ball swings are aimed at right now (the tutorial's practice ball, or the real one).</summary>
+    /// The ball swings are aimed at right now (the tutorial's practice ball, or the real one).
     private ball_controller HitBall => practiceBall != null ? practiceBall : ball;
 
     private float swingTimer;
@@ -164,6 +170,11 @@ public class player_movemen : MonoBehaviour
 
         TryGetComponent(out bot);
         TryGetComponent(out special);
+
+        // 2D sound source for hit sounds (sounds keep playing through a special's time stop).
+        sfxSource = gameObject.AddComponent<AudioSource>();
+        sfxSource.playOnAwake = false;
+        sfxSource.spatialBlend = 0f;
 
         if (upKey == Key.None) upKey = playerNumber == 1 ? Key.W : Key.UpArrow;
         if (downKey == Key.None) downKey = playerNumber == 1 ? Key.S : Key.DownArrow;
@@ -262,6 +273,7 @@ public class player_movemen : MonoBehaviour
         if (HitBall != null && !HitBall.WaitingToStart && HitBall.State == ball_controller.BallState.Held && HitBall.Server == this)
         {
             HitBall.Hit(this, GetShotTarget(ReadAim(), serveDepth), serveArcHeight);
+            PlayHitSound(hitSound);
             hitThisSwing = true;
         }
     }
@@ -303,6 +315,7 @@ public class player_movemen : MonoBehaviour
                  shotArcHeight,
                  barely ? barelyHitSpeed : normalHitSpeed,
                  slowHit: barely); // too many slow hits in a row and this one dribbles into the net
+        PlayHitSound(hitSound);
 
         if (barely)
         {
@@ -328,6 +341,7 @@ public class player_movemen : MonoBehaviour
         // It always travels at normal-hit speed.
         int half = aim > 0.1f ? 1 : (aim < -0.1f ? -1 : 0);
         HitBall.Hit(this, HitBall.RandomLandingSpot(Facing, half), shotArcHeight, normalHitSpeed);
+        PlayHitSound(specialHitSound);
 
         // =====================================================================
         //  SPECIAL SHOT
@@ -340,11 +354,11 @@ public class player_movemen : MonoBehaviour
             Debug.LogWarning($"[player_movemen] '{name}' used a special but has no special_ability component.", this);
     }
 
-    /// <summary>
+    /// 
     /// Picks where the shot lands on the opponent's half. <paramref name="depth"/>: 0 = just past the net,
     /// 1 = just before their end (capped inside the safe zone). Holding up/down aims the shot sideways.
     /// The ball's autocorrect pulls it back toward the middle if this ends up near a side edge.
-    /// </summary>
+    /// 
     private Vector2 GetShotTarget(float aim, float depth)
     {
         float x = HitBall.LandingXAtDepth(Facing, depth);
@@ -378,7 +392,7 @@ public class player_movemen : MonoBehaviour
     public void AddPoint() => Points++;
     public void ResetPoints() => Points = 0;
 
-    /// <summary>Empties the special gauge (used when the match resets).</summary>
+    /// Empties the special gauge (used when the match resets).
     public void ResetSpecial()
     {
         Special = 0f;
@@ -389,7 +403,7 @@ public class player_movemen : MonoBehaviour
 
     private bool ReadHitPressed() => BotActive ? bot.ConsumeHit() : WasPressed(hitKey);
 
-    /// <summary>Up/down aim for shots. Humans aim with the movement keys; bots choose their own.</summary>
+    /// Up/down aim for shots. Humans aim with the movement keys; bots choose their own.
     private float ReadAim() => BotActive ? bot.Aim : ReadVertical();
 
     private float ReadVertical()
@@ -412,6 +426,14 @@ public class player_movemen : MonoBehaviour
     {
         Keyboard kb = Keyboard.current;
         return kb != null && key != Key.None && kb[key].wasPressedThisFrame;
+    }
+
+    private AudioSource sfxSource;
+
+    /// Plays a hit sound if one is set (empty = silent).
+    private void PlayHitSound(AudioClip clip)
+    {
+        if (clip != null && sfxSource != null) sfxSource.PlayOneShot(clip, hitSoundVolume);
     }
 
     private void PlayAnimation(string animName, bool restart = false)

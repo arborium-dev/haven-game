@@ -3,13 +3,8 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-/// <summary>
 /// Menu screen: a "Cutscenes" checkbox (saved between sessions) and a Start button that plays the
 /// wave transition into the game.
-///
-/// Add this to the menu's Canvas. If Start Button / Cutscenes Toggle are empty, simple ones are built
-/// automatically in your title's font. To use your own, make a Button and a Toggle and drag them in.
-/// </summary>
 public class main_menu : MonoBehaviour
 {
     [Header("Your UI (optional - built automatically if empty)")]
@@ -130,10 +125,10 @@ public class main_menu : MonoBehaviour
         return button;
     }
 
-    /// <summary>
+    /// 
     /// Duplicates <paramref name="original"/> just underneath it with a new label, so the new toggle
     /// matches however you styled the original.
-    /// </summary>
+    /// 
     private Toggle CopyToggleBelow(Toggle original, string label)
     {
         GameObject copyObj = Instantiate(original.gameObject, original.transform.parent);

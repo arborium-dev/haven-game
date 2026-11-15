@@ -1,3 +1,5 @@
+// vibeslopped because fuck animating shit
+
 using UnityEngine;
 
 /// <summary>

@@ -347,14 +347,24 @@ MonoBehaviour:
   endEdgeMargin: 1
   netMargin: 1
   autocorrectStrength: 1
+  maxSlowHitsInARow: 3
+  slowHitRollChance: 0.1
+  dribbleArcHeight: 1.2
   wallZone: 1.5
   wallTimeBeforeSpin: 3
   spinStrength: 1.2
   spinRampTime: 1
+  keepShotsOnTable: 1
+  pathSideMargin: 0.5
+  wallSlideMargin: 0.4
+  slideAwaySpeed: 1
   shadowColor: {r: 0.45490196, g: 0.5411765, b: 0.69803923, a: 0.4}
   shadowShrinkHeight: 4
   shadowMinScale: 0.4
   shadowMinAlpha: 0.4
+  tableBounceSound: {fileID: 8300000, guid: b84dc9cc8f94a9049a2499f1796f7f99, type: 3}
+  tableBounceVolume: 1
+  minBounceSpeedForSound: 1
   squashAmount: 0.35
   squashDuration: 0.12
   firstServer: {fileID: 0}
@@ -557,6 +567,9 @@ MonoBehaviour:
   barelyHitThreshold: 0.523
   normalHitGain: 20
   barelyHitGainMultiplier: 0.5
+  hitSound: {fileID: 8300000, guid: 30d7fd06cb4e9ae4fbbf602bd8c1e114, type: 3}
+  specialHitSound: {fileID: 8300000, guid: 30d7fd06cb4e9ae4fbbf602bd8c1e114, type: 3}
+  hitSoundVolume: 1
   animator: {fileID: 0}
   idleAnimation: Idle
   swingAnimation: Swing
@@ -713,10 +726,10 @@ MonoBehaviour:
   - {r: 0.16862746, g: 0.058823533, b: 0.32941177, a: 1}
   - {r: 0.67058825, g: 0.121568635, b: 0.39607847, a: 1}
   - {r: 1, g: 0.30980393, b: 0.41176474, a: 1}
-  - {r: 1, g: 0.9686275, b: 0.9725491, a: 1}
+  - {r: 0.20000002, g: 0.40784317, b: 0.86274517, a: 1}
   - {r: 1, g: 0.5058824, b: 0.25882354, a: 1}
   - {r: 1, g: 0.854902, b: 0.27058825, a: 1}
-  - {r: 0.20000002, g: 0.40784317, b: 0.86274517, a: 1}
+  - {r: 1, g: 0.9686275, b: 0.9725491, a: 1}
   - {r: 0.28627452, g: 0.9058824, b: 0.92549026, a: 1}
   bandOrder: 0000000001000000020000000300000001000000040000000200000001000000i
   bandDensity: 0.75
@@ -1879,6 +1892,9 @@ MonoBehaviour:
   barelyHitThreshold: 0.523
   normalHitGain: 20
   barelyHitGainMultiplier: 0.5
+  hitSound: {fileID: 8300000, guid: 30d7fd06cb4e9ae4fbbf602bd8c1e114, type: 3}
+  specialHitSound: {fileID: 8300000, guid: 30d7fd06cb4e9ae4fbbf602bd8c1e114, type: 3}
+  hitSoundVolume: 1
   animator: {fileID: 0}
   idleAnimation: Idle
   swingAnimation: Swing

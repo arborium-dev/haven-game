@@ -5,19 +5,11 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
-
-/// <summary>
-/// Pre-game tutorial (switch it on/off from the menu). Runs for every human player at the same time,
-/// each with their own panel on their half of the screen. Bots skip it.
-///
+// some people are really  REALLY bad at reading...
 ///   Phase 1 - MOVE:    shows the up/down keys. Done once the player has moved both up and down.
 ///   Phase 2 - HIT:     practice balls fly at the player, showing the hit key. Missed? Another one comes.
 ///                      Done after a successful hit.
 ///   Phase 3 - SPECIAL: more practice balls; "HIT MIDDLE, FILL FASTER". Done when the special gauge is full.
-///
-/// A finished player's panel fades out. Once every player is done, gauges reset and the real game starts.
-/// Started automatically by ball_controller. Optional to place in the scene to tweak; created if missing.
-/// </summary>
 public class tutorial_manager : MonoBehaviour
 {
     private static tutorial_manager instance;
@@ -91,7 +83,7 @@ public class tutorial_manager : MonoBehaviour
     [Tooltip("Seconds to fade between solid and see-through.")]
     [SerializeField] private float seeThroughFadeTime = 0.12f;
 
-    /// <summary>True while the tutorial is running (the real ball is waiting).</summary>
+    /// True while the tutorial is running (the real ball is waiting).
     public bool Running { get; private set; }
 
     private ball_controller ball;
@@ -108,7 +100,7 @@ public class tutorial_manager : MonoBehaviour
         public float seeThrough = 1f; // drops while a ball is behind the panel
     }
 
-    /// <summary>Runs inside a single player's tutorial: their current practice ball and hit count.</summary>
+    /// Runs inside a single player's tutorial: their current practice ball and hit count.
     private class Practice
     {
         public player_movemen player;
@@ -133,7 +125,7 @@ public class tutorial_manager : MonoBehaviour
         if (instance == this) instance = null;
     }
 
-    /// <summary>Holds the real ball back and starts the tutorial. Called by ball_controller at the start of the game.</summary>
+    /// Holds the real ball back and starts the tutorial. Called by ball_controller at the start of the game.
     public void Begin(ball_controller realBall)
     {
         if (Running || realBall == null) return;
@@ -229,7 +221,7 @@ public class tutorial_manager : MonoBehaviour
 
     // ---------- Practice balls ----------
 
-    /// <summary>Keeps sending practice balls at the player. Counts hits; misses just get another ball.</summary>
+    /// Keeps sending practice balls at the player. Counts hits; misses just get another ball.
     private IEnumerator PracticeLoop(Practice s)
     {
         while (s.active)
@@ -268,7 +260,7 @@ public class tutorial_manager : MonoBehaviour
         }
     }
 
-    /// <summary>Throws a practice ball from the center of the screen so it lands on the player's half.</summary>
+    /// Throws a practice ball from the center of the screen so it lands on the player's half.
     private void Launch(ball_controller pb, player_movemen p, bool easyAim)
     {
         Bounds table = ball.TableBounds;
@@ -289,7 +281,7 @@ public class tutorial_manager : MonoBehaviour
         pb.LaunchPractice(new Vector2(fromX, fromY), fromHeight, new Vector2(targetX, targetY), practiceArcHeight, practiceSpeed);
     }
 
-    /// <summary>The middle of the screen in world X (falls back to the net if there's no camera).</summary>
+    /// The middle of the screen in world X (falls back to the net if there's no camera).
     private float CenterX()
     {
         Camera cam = Camera.main;
@@ -408,7 +400,7 @@ public class tutorial_manager : MonoBehaviour
         panel.fadeAlpha = 0f;
     }
 
-    /// <summary>Panels go see-through while any practice ball is behind them on screen, so you can track it.</summary>
+    /// Panels go see-through while any practice ball is behind them on screen, so you can track it.
     private void LateUpdate()
     {
         if (panels.Count == 0) return;
@@ -441,7 +433,7 @@ public class tutorial_manager : MonoBehaviour
         }
     }
 
-    /// <summary>A panel's area in screen pixels (the tutorial canvas is a screen overlay), grown by <paramref name="padding"/>.</summary>
+    /// A panel's area in screen pixels (the tutorial canvas is a screen overlay), grown by <paramref name="padding"/>.
     private static Rect ScreenRect(RectTransform rt, float padding)
     {
         var corners = new Vector3[4];
@@ -450,7 +442,7 @@ public class tutorial_manager : MonoBehaviour
                                corners[2].x + padding, corners[2].y + padding);
     }
 
-    /// <summary>Friendly key names for the panels ("UP", "SPACE", "W"...).</summary>
+    /// Friendly key names for the panels ("UP", "SPACE", "W"...).
     private static string KeyName(Key key)
     {
         switch (key)

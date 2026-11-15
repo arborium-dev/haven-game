@@ -1,15 +1,14 @@
 using UnityEngine;
 
-/// <summary>
+
 /// Player options that carry between scenes and play sessions (saved with PlayerPrefs).
-/// </summary>
 public static class game_settings
 {
     private const string CutscenesKey = "cutscenes_enabled";
     private const string TutorialKey = "tutorial_enabled";
     private const string Player2BotKey = "player2_bot";
 
-    /// <summary>When on, Player 2 is played by the bot. When off, Player 2 is a second human (arrow keys + Enter).</summary>
+    /// When on, Player 2 is played by the bot. When off, Player 2 is a second human (arrow keys + Enter).
     public static bool Player2IsBot
     {
         get => PlayerPrefs.GetInt(Player2BotKey, 1) == 1;
@@ -20,7 +19,7 @@ public static class game_settings
         }
     }
 
-    /// <summary>When on, each game starts with the tutorial (for every human player).</summary>
+    /// When on, each game starts with the tutorial (for every human player).
     public static bool TutorialEnabled
     {
         get => PlayerPrefs.GetInt(TutorialKey, 1) == 1;
@@ -31,7 +30,7 @@ public static class game_settings
         }
     }
 
-    /// <summary>When off, specials skip their cutscene (and its wave transition).</summary>
+    /// When off, specials skip their cutscene (and its wave transition).
     public static bool CutscenesEnabled
     {
         get => PlayerPrefs.GetInt(CutscenesKey, 1) == 1;

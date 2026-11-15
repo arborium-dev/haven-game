@@ -1,13 +1,9 @@
 using TMPro;
 using UnityEngine;
 
-/// <summary>
+/// 
 /// Keeps the on-screen score texts in sync with each player's points.
 /// The number pops briefly when it changes.
-///
-/// Add this anywhere (e.g. on the Canvas). If the slots are left empty it finds the players by Player Number,
-/// and the texts by the object names "score p1" / "score p2".
-/// </summary>
 public class score_display : MonoBehaviour
 {
     [Header("Players (found by Player Number if empty)")]
@@ -51,7 +47,7 @@ public class score_display : MonoBehaviour
         AnimatePop(player2Text, ref pop2, baseScale2);
     }
 
-    /// <summary>Only touches the text when a score actually changed (scoring, or a match reset back to 0).</summary>
+    /// Only touches the text when a score actually changed (scoring, or a match reset back to 0).
     private void Refresh(bool force)
     {
         int s1 = player1 != null ? player1.Points : 0;
