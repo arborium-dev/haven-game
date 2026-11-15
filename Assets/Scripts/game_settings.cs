@@ -8,6 +8,18 @@ public static class game_settings
     private const string TutorialKey = "tutorial_enabled";
     private const string Player2BotKey = "player2_bot";
     private const string SplitMusicKey = "split_music";
+    private const string HardModeKey = "hard_mode";
+
+    /// <summary>When on, specials speed the ball up more (see special_ability's Hard Mode Extra Speed).</summary>
+    public static bool HardMode
+    {
+        get => PlayerPrefs.GetInt(HardModeKey, 0) == 1;
+        set
+        {
+            PlayerPrefs.SetInt(HardModeKey, value ? 1 : 0);
+            PlayerPrefs.Save();
+        }
+    }
 
     /// <summary>
     /// OFF: one song for the whole game (the music plays as set up in the scene).
@@ -15,7 +27,7 @@ public static class game_settings
     /// </summary>
     public static bool SplitMusic
     {
-        get => PlayerPrefs.GetInt(SplitMusicKey, 0) == 1;
+        get => PlayerPrefs.GetInt(SplitMusicKey, 1) == 1; // split music is the default
         set
         {
             PlayerPrefs.SetInt(SplitMusicKey, value ? 1 : 0);

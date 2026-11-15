@@ -1,6 +1,7 @@
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 /// Menu screen: a "Cutscenes" checkbox (saved between sessions) and a Start button that plays the
@@ -16,6 +17,8 @@ public class main_menu : MonoBehaviour
     [SerializeField] private Toggle player2BotToggle;
     [Tooltip("Ticked = separate tutorial / main / post-special music. Empty = a copy of the P2 Bot toggle underneath it.")]
     [SerializeField] private Toggle splitMusicToggle;
+    [Tooltip("Ticked = hard mode (specials speed the ball up more). Empty = a copy of the toggle above, underneath it.")]
+    [SerializeField] private Toggle hardModeToggle;
 
     [Header("Scenes")]
     [SerializeField] private string gameSceneName = "Gameplay";
@@ -28,6 +31,7 @@ public class main_menu : MonoBehaviour
     [SerializeField] private string tutorialLabel = "TUTORIAL";
     [SerializeField] private string player2BotLabel = "P2 BOT";
     [SerializeField] private string splitMusicLabel = "SPLIT MUSIC";
+    [SerializeField] private string hardModeLabel = "HARD MODE";
     [Tooltip("Gap between the Cutscenes toggle and the Tutorial toggle under it.")]
     [SerializeField] private float toggleSpacing = 20f;
     [SerializeField] private Vector2 startButtonPosition = new Vector2(0f, -120f);
@@ -64,6 +68,13 @@ public class main_menu : MonoBehaviour
             Toggle above = player2BotToggle != null ? player2BotToggle : (tutorialToggle != null ? tutorialToggle : cutscenesToggle);
             if (above != null) splitMusicToggle = CopyToggleBelow(above, splitMusicLabel);
         }
+        if (hardModeToggle == null)
+        {
+            Toggle above = splitMusicToggle != null ? splitMusicToggle
+                         : player2BotToggle != null ? player2BotToggle
+                         : tutorialToggle != null ? tutorialToggle : cutscenesToggle;
+            if (above != null) hardModeToggle = CopyToggleBelow(above, hardModeLabel);
+        }
 
         if (cutscenesToggle != null)
         {
@@ -89,6 +100,12 @@ public class main_menu : MonoBehaviour
             splitMusicToggle.onValueChanged.AddListener(on => game_settings.SplitMusic = on);
         }
 
+        if (hardModeToggle != null)
+        {
+            hardModeToggle.SetIsOnWithoutNotify(game_settings.HardMode);
+            hardModeToggle.onValueChanged.AddListener(on => game_settings.HardMode = on);
+        }
+
         if (startButton != null)
         {
             startButton.onClick.AddListener(StartGame);
@@ -97,13 +114,35 @@ public class main_menu : MonoBehaviour
         }
     }
 
+    private bool starting;
+
+    private void Update()
+    {
+        if (starting) return;
+
+        // Never leave a checkbox selected: otherwise Space / Enter would flip it instead of starting the game.
+        EventSystem es = EventSystem.current;
+        if (es != null && es.currentSelectedGameObject != null && es.currentSelectedGameObject.GetComponent<Toggle>() != null)
+            es.SetSelectedGameObject(startButton != null ? startButton.gameObject : null);
+
+        // Space or Enter: start a new round with the settings as they are.
+        Keyboard kb = Keyboard.current;
+        if (kb != null && (kb.spaceKey.wasPressedThisFrame || kb.enterKey.wasPressedThisFrame || kb.numpadEnterKey.wasPressedThisFrame))
+            StartGame();
+    }
+
     public void StartGame()
     {
+        if (starting) return; // (the Start button and the key can both fire on the same press)
+        if (cutscene_transition.Instance.IsChangingScene) return; // still revealing the menu: ignore until it's done
+        starting = true;
+
         if (startButton != null) startButton.interactable = false;
         if (cutscenesToggle != null) cutscenesToggle.interactable = false;
         if (tutorialToggle != null) tutorialToggle.interactable = false;
         if (player2BotToggle != null) player2BotToggle.interactable = false;
         if (splitMusicToggle != null) splitMusicToggle.interactable = false;
+        if (hardModeToggle != null) hardModeToggle.interactable = false;
 
         // The wave grows out from the Start button.
         Vector2 origin = new Vector2(0.5f, 0.5f);

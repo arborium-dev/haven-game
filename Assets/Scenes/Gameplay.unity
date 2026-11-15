@@ -654,12 +654,14 @@ MonoBehaviour:
   cutsceneObject: {fileID: 1670763788}
   cutsceneDuration: 6
   mirrorOnRightSide: 1
+  webVideoFile: 
   musicSources:
   - {fileID: 840491764}
   resumeMusicAfter: 1
   poseSprite: {fileID: 0}
   poseDuration: 0.75
-  ballSpeedMultiplier: 1.65
+  ballSpeedMultiplier: 1.55
+  hardModeExtraSpeed: 0.2
 --- !u!114 &336861126
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1151,8 +1153,8 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4290969762
-  m_fontColor: {r: 0.63529414, g: 0, b: 0.76470596, a: 1}
+    rgba: 4293715785
+  m_fontColor: {r: 0.28627452, g: 0.90588236, b: 0.9254902, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
   m_fontColorGradient:
@@ -1536,8 +1538,8 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4290969762
-  m_fontColor: {r: 0.636269, g: 0, b: 0.764151, a: 1}
+    rgba: 4293715785
+  m_fontColor: {r: 0.28627452, g: 0.90588236, b: 0.9254902, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
   m_fontColorGradient:
@@ -1897,7 +1899,7 @@ MonoBehaviour:
   playerNumber: 2
   ball: {fileID: 137267773}
   upKey: 29
-  downKey: 25
+  downKey: 26
   hitKey: 2
   moveSpeed: 6
   clampToTable: 1
@@ -2103,12 +2105,14 @@ MonoBehaviour:
   cutsceneObject: {fileID: 1670763788}
   cutsceneDuration: 6
   mirrorOnRightSide: 1
+  webVideoFile: 
   musicSources:
   - {fileID: 840491764}
   resumeMusicAfter: 1
   poseSprite: {fileID: 0}
   poseDuration: 0.75
-  ballSpeedMultiplier: 1.65
+  ballSpeedMultiplier: 1.55
+  hardModeExtraSpeed: 0.2
 --- !u!114 &1367712917
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2231,7 +2235,7 @@ VideoPlayer:
   m_TargetMaterialProperty: <noninit>
   m_RenderMode: 1
   m_AspectRatio: 2
-  m_DataSource: 0
+  m_DataSource: 1
   m_TimeUpdateMode: 2
   m_PlaybackSpeed: 1
   m_AudioOutputMode: 2
@@ -2239,7 +2243,7 @@ VideoPlayer:
   - {fileID: 0}
   m_DirectAudioVolumes:
   - 0.716
-  m_Url: 
+  m_Url: https://croakitori.xyz/bazooka_haven_v1.mp4
   m_EnabledAudioTracks: 01o
   m_DirectAudioMutes: 00o
   m_ControlledAudioTrackCount: 1

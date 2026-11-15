@@ -32,6 +32,9 @@ public class special_ability : MonoBehaviour
     [Tooltip("Flip the cutscene left-to-right when this player is on the right side of the table, so it faces " +
              "the same way they do. Works for videos and cutscene objects (not Timelines).")]
     [SerializeField] private bool mirrorOnRightSide = true;
+    [Tooltip("WEB BUILDS: browsers can't play imported video clips, so the cutscene plays this file from " +
+             "Assets/StreamingAssets instead. Empty = the clip's name + .mp4 (e.g. bazooka_haven_v1.mp4).")]
+    [SerializeField] private string webVideoFile = "";
 
     [Header("Music")]
     [Tooltip("Music to pause when the cutscene starts. Leave empty to pause every AudioSource that's playing " +
@@ -50,12 +53,14 @@ public class special_ability : MonoBehaviour
     [Tooltip("Each special multiplies the ball's speed by this (1.5 = 50% faster). Stacks if specials happen again " +
              "before the reset; the ball never drops below its boosted speed until then.")]
     [SerializeField] private float ballSpeedMultiplier = 1.5f;
+    [Tooltip("HARD MODE (menu): added to Ball Speed Multiplier (0.2 turns 1.55x into 1.75x).")]
+    [SerializeField] private float hardModeExtraSpeed = 0.2f;
 
     /// <summary>True while the time-stop sequence is running.</summary>
     public bool IsPlaying { get; private set; }
 
-    /// <summary>How much this special speeds the ball up (used to check the super can still be returned).</summary>
-    public float BallSpeedMultiplier => ballSpeedMultiplier;
+    /// <summary>How much this special speeds the ball up, including the hard mode bonus when it's on.</summary>
+    public float BallSpeedMultiplier => ballSpeedMultiplier + (game_settings.HardMode ? hardModeExtraSpeed : 0f);
 
     private player_movemen player;
     private SpriteRenderer spriteRenderer;
@@ -237,7 +242,7 @@ public class special_ability : MonoBehaviour
         }
 
         // 4. Resume with a faster ball.
-        if (player.Ball != null) player.Ball.StackSpeedBoost(ballSpeedMultiplier);
+        if (player.Ball != null) player.Ball.StackSpeedBoost(BallSpeedMultiplier); // (+ hard mode bonus)
         match_effects.Instance.QueueTableMark(); // the next table bounce leaves a mark
         match_effects.Instance.ResumeTime();
         ResumeMusic();
@@ -253,19 +258,28 @@ public class special_ability : MonoBehaviour
         video.isLooping = false;
         video.timeUpdateMode = VideoTimeUpdateMode.UnscaledGameTime; // keep playing while time is stopped
 
+        float prepareTimeout = 3f;
+#if UNITY_WEBGL && !UNITY_EDITOR
+        // Web builds can't play imported video clips, only video files by URL (from StreamingAssets).
+        UseWebVideoUrl(video);
+        prepareTimeout = 10f; // it may have to download first
+#endif
+
         if (mirror) BeginMirroredVideo(video);
 
         // Load the video first so it starts instantly on its first frame.
+        // (The wave transition is covering the screen while this happens.)
         video.Prepare();
         float waited = 0f;
-        while (!video.isPrepared && waited < 3f)
+        while (!video.isPrepared && waited < prepareTimeout)
         {
             waited += Time.unscaledDeltaTime;
             yield return null;
         }
 
-        // Length comes from the clip itself, so swapping the video needs no other changes.
-        double length = video.clip != null ? video.clip.length : video.length;
+        // Length comes from the video itself, so swapping the video needs no other changes.
+        double length = video.isPrepared && video.length > 0 ? video.length
+                      : video.clip != null ? video.clip.length : 0;
         if (length <= 0) length = cutsceneDuration;
 
         bool finished = false;
@@ -294,6 +308,26 @@ public class special_ability : MonoBehaviour
 
         video.loopPointReached -= onEnd;
         // (Stopped by Sequence once the wave has covered the screen again.)
+    }
+
+    /// <summary>
+    /// Points the VideoPlayer at the cutscene's copy in StreamingAssets (by URL), which is the only way
+    /// browsers can play it. Only used in web builds.
+    /// </summary>
+    private void UseWebVideoUrl(VideoPlayer video)
+    {
+        if (video.source == VideoSource.Url && !string.IsNullOrEmpty(video.url)) return; // already set up
+
+        string file = !string.IsNullOrEmpty(webVideoFile) ? webVideoFile
+                    : video.clip != null ? video.clip.name + ".mp4" : "";
+        if (string.IsNullOrEmpty(file))
+        {
+            Debug.LogWarning($"[special_ability] No web video file set on '{name}', so the cutscene can't play in the browser.", this);
+            return;
+        }
+
+        video.source = VideoSource.Url;
+        video.url = Application.streamingAssetsPath + "/" + file;
     }
 
     // ---------- Mirroring ----------
