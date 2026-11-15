@@ -45,9 +45,21 @@ public class player_movemen : MonoBehaviour
     [SerializeField] private float shotArcHeight = 2.5f;
     [Tooltip("Arc height for serves.")]
     [SerializeField] private float serveArcHeight = 1.5f;
-    [Tooltip("Where on the opponent's half the shot lands. 0 = at the net, 1 = at their end of the table.")]
-    [Range(0.1f, 0.95f)]
-    [SerializeField] private float shotDepth = 0.65f;
+    [Tooltip("Where shots land on the opponent's half: 0 = just past the net, 1 = just before their end of the table. " +
+             "(The ball's Net Margin / End Edge Margin set how close 'just' is.)")]
+    [Range(0f, 1f)]
+    [FormerlySerializedAs("shotDepth")]
+    [SerializeField] private float serveDepth = 0.65f;
+    [Tooltip("Normal hits land deep...")]
+    [Range(0f, 1f)]
+    [SerializeField] private float normalHitDepth = 0.9f;
+    [Tooltip("...and travel faster than usual (1 = normal speed).")]
+    [SerializeField] private float normalHitSpeed = 1.15f;
+    [Tooltip("Barely hits land short, close to the net...")]
+    [Range(0f, 1f)]
+    [SerializeField] private float barelyHitDepth = 0.15f;
+    [Tooltip("...and travel slower than usual (1 = normal speed).")]
+    [SerializeField] private float barelyHitSpeed = 0.75f;
     [Tooltip("How far up/down the shot is aimed when holding up or down while hitting.")]
     [SerializeField] private float aimAmount = 1.5f;
 
@@ -219,7 +231,7 @@ public class player_movemen : MonoBehaviour
         // Serving: the ball is waiting on our paddle, so just send it.
         if (ball != null && ball.State == ball_controller.BallState.Held && ball.Server == this)
         {
-            ball.Hit(this, GetShotTarget(ReadAim()), serveArcHeight);
+            ball.Hit(this, GetShotTarget(ReadAim(), serveDepth), serveArcHeight);
             hitThisSwing = true;
         }
     }
@@ -253,11 +265,15 @@ public class player_movemen : MonoBehaviour
             return;
         }
 
-        ball.Hit(this, GetShotTarget(aim), shotArcHeight);
-
         // Barely hit: at its closest, the ball was right at the edge of the paddle's reach
-        // (paddle lined up badly, or swung too late).
-        if (closestDist / hitRadius >= barelyHitThreshold)
+        // (paddle lined up badly, or swung too late). Barely = slow and short, normal = fast and deep.
+        bool barely = closestDist / hitRadius >= barelyHitThreshold;
+        ball.Hit(this,
+                 GetShotTarget(aim, barely ? barelyHitDepth : normalHitDepth),
+                 shotArcHeight,
+                 barely ? barelyHitSpeed : normalHitSpeed);
+
+        if (barely)
         {
             PlayAnimation(barelyHitAnimation, restart: true);
             OnBarelyHit?.Invoke();
@@ -276,7 +292,8 @@ public class player_movemen : MonoBehaviour
         PlayAnimation(specialShotAnimation, restart: true);
         OnSpecialShot?.Invoke();
 
-        ball.Hit(this, GetShotTarget(aim), shotArcHeight);
+        // The special lands somewhere random on the opponent's side (inside the safe zone).
+        ball.Hit(this, ball.RandomLandingSpot(Facing), shotArcHeight);
 
         // =====================================================================
         //  SPECIAL SHOT
@@ -290,12 +307,13 @@ public class player_movemen : MonoBehaviour
     }
 
     /// <summary>
-    /// Picks where the shot lands on the opponent's half. Holding up/down aims the shot.
-    /// The ball's autocorrect pulls it back toward the middle if this ends up near an edge.
+    /// Picks where the shot lands on the opponent's half. <paramref name="depth"/>: 0 = just past the net,
+    /// 1 = just before their end (capped inside the safe zone). Holding up/down aims the shot sideways.
+    /// The ball's autocorrect pulls it back toward the middle if this ends up near a side edge.
     /// </summary>
-    private Vector2 GetShotTarget(float aim)
+    private Vector2 GetShotTarget(float aim, float depth)
     {
-        float x = ball.NetX + Facing * ball.TableBounds.extents.x * shotDepth;
+        float x = ball.LandingXAtDepth(Facing, depth);
         float y = ball.GroundPosition.y + aim * aimAmount;
         return new Vector2(x, y);
     }

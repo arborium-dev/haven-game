@@ -51,6 +51,16 @@ public class ball_controller : MonoBehaviour
     [Range(0f, 1f)]
     [SerializeField] private float autocorrectStrength = 1f;
 
+    [Header("Wall Spin (keeps rallies moving)")]
+    [Tooltip("The ball counts as 'at a wall' when it's within this distance of the table's top or bottom edge.")]
+    [SerializeField] private float wallZone = 1.5f;
+    [Tooltip("Seconds of play spent at a wall before spin kicks in.")]
+    [SerializeField] private float wallTimeBeforeSpin = 3f;
+    [Tooltip("How hard spin curves the ball back toward the middle (sideways pull per second). Keep it subtle.")]
+    [SerializeField] private float spinStrength = 1.2f;
+    [Tooltip("Seconds for spin to fade in once it starts.")]
+    [SerializeField] private float spinRampTime = 1f;
+
     [Header("Drop Shadow")]
     [SerializeField] private Color shadowColor = new Color(0f, 0f, 0f, 0.4f);
     [Tooltip("Height at which the shadow reaches its smallest / faintest.")]
@@ -97,6 +107,12 @@ public class ball_controller : MonoBehaviour
     /// <summary>True once a special has sped the ball up. Hits and bounces then cause slow-mo impact frames.</summary>
     public bool IsPowered => speedFloor > 1.0001f;
     private float speedFloor = 1f;
+    private float shotSpeed = 1f;     // this shot's own speed (barely = slow, normal = fast)
+    private float wallTimer;          // how long the ball has been hugging a side edge
+    private float spinAcceleration;   // current sideways pull toward the middle (0 = no spin)
+
+    /// <summary>True while wall spin is curving the ball back toward the middle.</summary>
+    public bool IsSpinning => !Mathf.Approximately(spinAcceleration, 0f);
 
     /// <summary>The ball's contact point on the table plane (same as the shadow).</summary>
     public Vector2 GroundPosition => transform.position;
@@ -148,7 +164,7 @@ public class ball_controller : MonoBehaviour
         else
         {
             // Running the ball's own clock faster makes every arc play out faster without changing its shape.
-            Simulate(Time.deltaTime * speedFloor);
+            Simulate(Time.deltaTime * speedFloor * shotSpeed);
 
             if (State == BallState.Dead)
             {
@@ -171,11 +187,13 @@ public class ball_controller : MonoBehaviour
     /// and comes down onto <paramref name="target"/> (a point on the table).
     /// The arc is raised automatically if it wouldn't clear the net.
     /// </summary>
-    public void Hit(player_movemen hitter, Vector2 target, float arcHeight)
+    /// <param name="speedScale">How fast this particular shot travels (1 = normal). The arc keeps its shape.</param>
+    public void Hit(player_movemen hitter, Vector2 target, float arcHeight, float speedScale = 1f)
     {
         LastHitter = hitter;
         receiverBounces = 0;
         State = BallState.InPlay;
+        shotSpeed = Mathf.Max(0.1f, speedScale);
 
         Vector2 from = GroundPosition;
         target = AutocorrectTarget(target, hitter);
@@ -216,19 +234,45 @@ public class ball_controller : MonoBehaviour
     {
         if (autocorrectStrength <= 0f) return target;
 
-        Bounds b = TableBounds;
-        float netX = NetX;
-        int toward = hitter != null ? hitter.Facing : (target.x >= netX ? 1 : -1);
+        int toward = hitter != null ? hitter.Facing : (target.x >= NetX ? 1 : -1);
+        Rect zone = SafeLandingZone(toward);
 
-        // Safe landing zone on the receiving half.
-        float nearX = netX + toward * netMargin;
+        Vector2 safe = new Vector2(Mathf.Clamp(target.x, zone.xMin, zone.xMax), Mathf.Clamp(target.y, zone.yMin, zone.yMax));
+        return Vector2.Lerp(target, safe, autocorrectStrength);
+    }
+
+    /// <summary>
+    /// Where shots are allowed to land on the half in direction <paramref name="toward"/> (+1 = right half):
+    /// a little in from the net, the far end, and both sides.
+    /// </summary>
+    public Rect SafeLandingZone(int toward)
+    {
+        Bounds b = TableBounds;
+        float nearX = NetX + toward * netMargin;
         float farX = (toward > 0 ? b.max.x : b.min.x) - toward * endEdgeMargin;
         float minX = Mathf.Min(nearX, farX), maxX = Mathf.Max(nearX, farX);
         float minY = b.min.y + sideEdgeMargin, maxY = b.max.y - sideEdgeMargin;
         if (minY > maxY) minY = maxY = b.center.y;
+        return Rect.MinMaxRect(minX, minY, maxX, maxY);
+    }
 
-        Vector2 safe = new Vector2(Mathf.Clamp(target.x, minX, maxX), Mathf.Clamp(target.y, minY, maxY));
-        return Vector2.Lerp(target, safe, autocorrectStrength);
+    /// <summary>A random spot inside the safe landing zone on the half in direction <paramref name="toward"/>.</summary>
+    public Vector2 RandomLandingSpot(int toward)
+    {
+        Rect zone = SafeLandingZone(toward);
+        return new Vector2(UnityEngine.Random.Range(zone.xMin, zone.xMax), UnityEngine.Random.Range(zone.yMin, zone.yMax));
+    }
+
+    /// <summary>
+    /// A landing spot <paramref name="depth"/> of the way from the net (0) to the far end (1) of the safe zone.
+    /// Values are capped so shots always land a little in from the net and the table's edge.
+    /// </summary>
+    public float LandingXAtDepth(int toward, float depth)
+    {
+        Rect zone = SafeLandingZone(toward);
+        float near = toward > 0 ? zone.xMin : zone.xMax;
+        float far = toward > 0 ? zone.xMax : zone.xMin;
+        return Mathf.Lerp(near, far, Mathf.Clamp01(depth));
     }
 
     private bool ClearsNet(Vector2 from)
@@ -247,6 +291,9 @@ public class ball_controller : MonoBehaviour
         Vector2 prevPos = GroundPosition;
         float prevHeight = height;
 
+        if (State == BallState.InPlay) UpdateWallSpin(dt);
+        groundVelocity.y += spinAcceleration * dt;
+
         Vector2 newPos = prevPos + groundVelocity * dt;
         verticalVelocity -= gravity * dt;
         height += verticalVelocity * dt;
@@ -264,6 +311,29 @@ public class ball_controller : MonoBehaviour
         {
             HitFloor();
         }
+    }
+
+    /// <summary>
+    /// If the rally keeps hugging one side of the table, slowly add spin that curves the ball back toward the middle.
+    /// </summary>
+    private void UpdateWallSpin(float dt)
+    {
+        Bounds b = TableBounds;
+        float y = GroundPosition.y;
+        bool atWall = y <= b.min.y + wallZone || y >= b.max.y - wallZone;
+
+        if (atWall) wallTimer += dt;
+        else wallTimer = 0f;
+
+        float target = 0f;
+        if (wallTimer > wallTimeBeforeSpin)
+        {
+            float ramp = spinRampTime > 0f ? Mathf.Clamp01((wallTimer - wallTimeBeforeSpin) / spinRampTime) : 1f;
+            target = Mathf.Sign(b.center.y - y) * spinStrength * ramp;
+        }
+
+        // Ease in and out so it never feels like a sudden shove.
+        spinAcceleration = Mathf.MoveTowards(spinAcceleration, target, spinStrength * dt * 2f);
     }
 
     private bool HitNet(Vector2 prevPos, Vector2 newPos)
@@ -324,6 +394,8 @@ public class ball_controller : MonoBehaviour
     {
         State = BallState.Dead;
         resetTimer = pointResetDelay;
+        spinAcceleration = 0f;
+        wallTimer = 0f;
 
         if (winner != null)
         {
@@ -342,6 +414,9 @@ public class ball_controller : MonoBehaviour
         receiverBounces = 0;
         groundVelocity = Vector2.zero;
         verticalVelocity = 0f;
+        shotSpeed = 1f;
+        wallTimer = 0f;
+        spinAcceleration = 0f;
         State = BallState.Held;
         FollowServer();
     }
@@ -406,6 +481,7 @@ public class ball_controller : MonoBehaviour
         for (float t = step; t <= maxTime; t += step)
         {
             float prevH = h;
+            v.y += spinAcceleration * step; // include current spin
             pos += v * step;
             vy -= gravity * step;
             h += vy * step;
@@ -426,7 +502,7 @@ public class ball_controller : MonoBehaviour
             if ((v.x > 0f && pos.x >= x) || (v.x < 0f && pos.x <= x))
             {
                 visual = ToVisual(pos, h);
-                time = t / speedFloor; // real seconds, accounting for a sped-up ball
+                time = t / (speedFloor * shotSpeed); // real seconds, accounting for special boosts and shot speed
                 return true;
             }
         }
