@@ -126,6 +126,24 @@ public class player_movemen : MonoBehaviour
     public bool ControlsLocked { get; set; }
     public float SwingDuration => swingDuration;
 
+    /// <summary>True when a bot is playing for this player.</summary>
+    public bool IsBot => BotActive;
+    public Key UpKey => upKey;
+    public Key DownKey => downKey;
+    public Key HitKey => hitKey;
+    /// <summary>The up/down input from the latest frame (-1 to 1).</summary>
+    public float LastVertical { get; private set; }
+
+    /// <summary>
+    /// Tutorial: swings go at this practice ball instead of the real one. Set to null to go back to the real ball.
+    /// </summary>
+    public void SetPracticeBall(ball_controller practice) => practiceBall = practice;
+    public ball_controller PracticeBall => practiceBall;
+    private ball_controller practiceBall;
+
+    /// <summary>The ball swings are aimed at right now (the tutorial's practice ball, or the real one).</summary>
+    private ball_controller HitBall => practiceBall != null ? practiceBall : ball;
+
     private float swingTimer;
     private float cooldownTimer;
     private bool hitThisSwing;
@@ -178,6 +196,7 @@ public class player_movemen : MonoBehaviour
         if (Time.timeScale == 0f || ControlsLocked) return;
 
         float vertical = ReadVertical();
+        LastVertical = vertical;
         Move(vertical);
 
         if (cooldownTimer > 0f) cooldownTimer -= Time.deltaTime;
@@ -231,20 +250,21 @@ public class player_movemen : MonoBehaviour
         OnSwing?.Invoke();
 
         // Serving: the ball is waiting on our paddle, so just send it.
-        if (ball != null && ball.State == ball_controller.BallState.Held && ball.Server == this)
+        // (Not while the game is waiting on the tutorial.)
+        if (HitBall != null && !HitBall.WaitingToStart && HitBall.State == ball_controller.BallState.Held && HitBall.Server == this)
         {
-            ball.Hit(this, GetShotTarget(ReadAim(), serveDepth), serveArcHeight);
+            HitBall.Hit(this, GetShotTarget(ReadAim(), serveDepth), serveArcHeight);
             hitThisSwing = true;
         }
     }
 
     private void TryHit(float aim)
     {
-        if (ball == null || ball.State != ball_controller.BallState.InPlay) return;
-        if (ball.LastHitter == this) return; // already hit it, wait for the return
+        if (HitBall == null || HitBall.State != ball_controller.BallState.InPlay) return;
+        if (HitBall.LastHitter == this) return; // already hit it, wait for the return
 
         // Measured to the ball sprite on screen, so a ball high in the air is out of reach until it comes down.
-        float dist = Vector2.Distance(PaddlePoint, ball.VisualPosition);
+        float dist = Vector2.Distance(PaddlePoint, HitBall.VisualPosition);
         if (dist > hitRadius)
         {
             closestDist = float.MaxValue;
@@ -260,8 +280,8 @@ public class player_movemen : MonoBehaviour
 
         hitThisSwing = true;
 
-        // Gauge was full going into this hit: spend it on the special shot instead.
-        if (HasSpecialGauge && SpecialIsFull)
+        // Gauge was full going into this hit: spend it on the special shot instead (never on practice balls).
+        if (HasSpecialGauge && SpecialIsFull && practiceBall == null)
         {
             UseSpecialShot(aim);
             return;
@@ -270,7 +290,7 @@ public class player_movemen : MonoBehaviour
         // Barely hit: at its closest, the ball was right at the edge of the paddle's reach
         // (paddle lined up badly, or swung too late). Barely = slow and short, normal = fast and deep.
         bool barely = closestDist / hitRadius >= barelyHitThreshold;
-        ball.Hit(this,
+        HitBall.Hit(this,
                  GetShotTarget(aim, barely ? barelyHitDepth : normalHitDepth),
                  shotArcHeight,
                  barely ? barelyHitSpeed : normalHitSpeed);
@@ -295,7 +315,7 @@ public class player_movemen : MonoBehaviour
         OnSpecialShot?.Invoke();
 
         // The special lands somewhere random on the opponent's side (inside the safe zone).
-        ball.Hit(this, ball.RandomLandingSpot(Facing), shotArcHeight);
+        HitBall.Hit(this, HitBall.RandomLandingSpot(Facing), shotArcHeight);
 
         // =====================================================================
         //  SPECIAL SHOT
@@ -315,8 +335,8 @@ public class player_movemen : MonoBehaviour
     /// </summary>
     private Vector2 GetShotTarget(float aim, float depth)
     {
-        float x = ball.LandingXAtDepth(Facing, depth);
-        float y = ball.GroundPosition.y + aim * aimAmount;
+        float x = HitBall.LandingXAtDepth(Facing, depth);
+        float y = HitBall.GroundPosition.y + aim * aimAmount;
         return new Vector2(x, y);
     }
 

@@ -15,6 +15,8 @@ public class main_menu : MonoBehaviour
     [Header("Your UI (optional - built automatically if empty)")]
     [SerializeField] private Button startButton;
     [SerializeField] private Toggle cutscenesToggle;
+    [Tooltip("Empty = a copy of your Cutscenes toggle is placed underneath it, labelled Tutorial Label.")]
+    [SerializeField] private Toggle tutorialToggle;
 
     [Header("Scenes")]
     [SerializeField] private string gameSceneName = "Gameplay";
@@ -24,6 +26,9 @@ public class main_menu : MonoBehaviour
     [SerializeField] private TMP_FontAsset font;
     [SerializeField] private string startLabel = "START";
     [SerializeField] private string cutscenesLabel = "CUTSCENES";
+    [SerializeField] private string tutorialLabel = "TUTORIAL";
+    [Tooltip("Gap between the Cutscenes toggle and the Tutorial toggle under it.")]
+    [SerializeField] private float toggleSpacing = 20f;
     [SerializeField] private Vector2 startButtonPosition = new Vector2(0f, -120f);
     [SerializeField] private Vector2 startButtonSize = new Vector2(280f, 80f);
     [SerializeField] private Vector2 togglePosition = new Vector2(0f, -220f);
@@ -46,12 +51,19 @@ public class main_menu : MonoBehaviour
         }
 
         if (startButton == null && canvas != null) startButton = BuildButton(canvas.transform);
-        if (cutscenesToggle == null && canvas != null) cutscenesToggle = BuildToggle(canvas.transform);
+        if (cutscenesToggle == null && canvas != null) cutscenesToggle = BuildToggle(canvas.transform, cutscenesLabel, togglePosition);
+        if (tutorialToggle == null && cutscenesToggle != null) tutorialToggle = CopyToggleBelow(cutscenesToggle, tutorialLabel);
 
         if (cutscenesToggle != null)
         {
             cutscenesToggle.SetIsOnWithoutNotify(game_settings.CutscenesEnabled);
             cutscenesToggle.onValueChanged.AddListener(on => game_settings.CutscenesEnabled = on);
+        }
+
+        if (tutorialToggle != null)
+        {
+            tutorialToggle.SetIsOnWithoutNotify(game_settings.TutorialEnabled);
+            tutorialToggle.onValueChanged.AddListener(on => game_settings.TutorialEnabled = on);
         }
 
         if (startButton != null)
@@ -66,6 +78,7 @@ public class main_menu : MonoBehaviour
     {
         if (startButton != null) startButton.interactable = false;
         if (cutscenesToggle != null) cutscenesToggle.interactable = false;
+        if (tutorialToggle != null) tutorialToggle.interactable = false;
 
         // The wave grows out from the Start button.
         Vector2 origin = new Vector2(0.5f, 0.5f);
@@ -102,14 +115,41 @@ public class main_menu : MonoBehaviour
         return button;
     }
 
-    private Toggle BuildToggle(Transform parent)
+    /// <summary>
+    /// Duplicates <paramref name="original"/> just underneath it with a new label, so the new toggle
+    /// matches however you styled the original.
+    /// </summary>
+    private Toggle CopyToggleBelow(Toggle original, string label)
+    {
+        GameObject copyObj = Instantiate(original.gameObject, original.transform.parent);
+        copyObj.name = label + " Toggle";
+
+        var rt = (RectTransform)copyObj.transform;
+        var originalRt = (RectTransform)original.transform;
+        rt.anchoredPosition = originalRt.anchoredPosition - new Vector2(0f, originalRt.rect.height + toggleSpacing);
+
+        Toggle copy = copyObj.GetComponent<Toggle>();
+        copy.onValueChanged = new Toggle.ToggleEvent(); // don't inherit anything wired to the original
+        copy.group = null;
+
+        TMP_Text text = copyObj.GetComponentInChildren<TMP_Text>(true);
+        if (text != null) text.text = label;
+        else
+        {
+            Text legacy = copyObj.GetComponentInChildren<Text>(true);
+            if (legacy != null) legacy.text = label;
+        }
+        return copy;
+    }
+
+    private Toggle BuildToggle(Transform parent, string label, Vector2 position)
     {
         float box = fontSize * 0.9f;
 
-        var obj = new GameObject("Cutscenes Toggle", typeof(RectTransform));
+        var obj = new GameObject(label + " Toggle", typeof(RectTransform));
         obj.transform.SetParent(parent, false);
         var rt = (RectTransform)obj.transform;
-        rt.anchoredPosition = togglePosition;
+        rt.anchoredPosition = position;
         rt.sizeDelta = new Vector2(startButtonSize.x + 80f, box);
 
         // Checkbox square on the left.
@@ -138,8 +178,8 @@ public class main_menu : MonoBehaviour
         toggle.colors = HoverColors();
 
         // Label to the right (clicking it toggles too).
-        TMP_Text label = MakeLabel(obj.transform, cutscenesLabel, TextAlignmentOptions.Left, Vector2.zero, Vector2.one);
-        label.rectTransform.offsetMin = new Vector2(box + 16f, 0f);
+        TMP_Text labelText = MakeLabel(obj.transform, label, TextAlignmentOptions.Left, Vector2.zero, Vector2.one);
+        labelText.rectTransform.offsetMin = new Vector2(box + 16f, 0f);
         return toggle;
     }
 

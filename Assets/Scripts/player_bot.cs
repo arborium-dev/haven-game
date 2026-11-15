@@ -79,11 +79,20 @@ public class player_bot : MonoBehaviour
             return;
         }
 
-        if (ball.LastHitter != trackedHitter || ball.State != trackedState)
-            OnNewShot(ball);
-
         // By default, drift back to the middle of the table.
         float targetY = ball.TableBounds.center.y;
+
+        // Tutorial running: wait in the middle, and give the first serve its normal delay once it ends.
+        if (ball.WaitingToStart)
+        {
+            serveTimer = serveDelay;
+            hitQueued = false;
+            MoveToward(targetY);
+            return;
+        }
+
+        if (ball.LastHitter != trackedHitter || ball.State != trackedState)
+            OnNewShot(ball);
 
         switch (ball.State)
         {

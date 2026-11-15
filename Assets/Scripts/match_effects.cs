@@ -206,7 +206,12 @@ public class match_effects : MonoBehaviour
 
     private void HookBall()
     {
-        if (ball == null) ball = FindAnyObjectByType<ball_controller>();
+        if (ball == null)
+        {
+            // The real ball, never a tutorial practice copy.
+            foreach (ball_controller b in FindObjectsByType<ball_controller>())
+                if (!b.PracticeMode) { ball = b; break; }
+        }
         if (ball == subscribedBall) return;
 
         if (subscribedBall != null) subscribedBall.OnBounce -= HandleBounce;

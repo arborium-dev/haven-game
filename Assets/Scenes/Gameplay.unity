@@ -360,6 +360,7 @@ MonoBehaviour:
   firstServer: {fileID: 0}
   serveHoldHeight: 1
   pointResetDelay: 1
+  pointsToWin: 3
   resetSpecialsEachPoint: 1
   maxSpeedMultiplier: 4
 --- !u!1 &228227364
@@ -718,6 +719,77 @@ MonoBehaviour:
   useUnscaledTime: 0
   targetCamera: {fileID: 0}
   sortingOrder: -100
+--- !u!1 &436606854
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 436606856}
+  - component: {fileID: 436606855}
+  m_Layer: 0
+  m_Name: tutorial_manager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &436606855
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 436606854}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9b7e8ca1ffc723d4c81e143e59ac6996, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::tutorial_manager
+  moveHoldNeeded: 0.3
+  hitsNeeded: 1
+  practiceArcHeight: 2
+  practiceSpeed: 0.8
+  landingDepthRange: {x: 0.55, y: 0.85}
+  easyAimSpread: 0.6
+  delayBetweenBalls: 0.6
+  returnedBallLifetime: 1.2
+  moveTitle: MOVE
+  hitTitle: HIT
+  specialTitle: SPECIAL
+  specialHint: HIT MIDDLE, FILL FASTER
+  phaseDoneTitle: NICE!
+  finishedTitle: READY!
+  font: {fileID: 0}
+  panelColor: {r: 0.16, g: 0.06, b: 0.23, a: 0.85}
+  outlineColor: {r: 0.9764706, g: 0.69803923, b: 0.11764706, a: 1}
+  titleColor: {r: 0.9647059, g: 0.9019608, b: 0.76862746, a: 1}
+  hintColor: {r: 0.9764706, g: 0.69803923, b: 0.11764706, a: 1}
+  niceColor: {r: 0.9254902, g: 0.15294118, b: 0.43137255, a: 1}
+  panelHeight: 0.72
+  panelSize: {x: 400, y: 160}
+  phaseDoneDelay: 0.7
+  fadeDuration: 0.5
+  translucentAlpha: 0.3
+  seeThroughPadding: 40
+  seeThroughFadeTime: 0.12
+--- !u!4 &436606856
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 436606854}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 469.71655, y: 304.25317, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &519420028
 GameObject:
   m_ObjectHideFlags: 0
@@ -1224,6 +1296,56 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0.66863, y: 1.80263, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &848922421
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 848922423}
+  - component: {fileID: 848922422}
+  m_Layer: 0
+  m_Name: round_end
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &848922422
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 848922421}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 24722072cc713cf4dab4e666b5cfcc68, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::round_end
+  menuSceneName: mENU
+  moveDuration: 1
+  loserFadeDuration: 0.8
+  waveDuration: 1.4
+  winnerFadeDuration: 0.25
+  winnerSortingOrder: 500
+--- !u!4 &848922423
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 848922421}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 596.7749, y: 299.60052, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1943,3 +2065,5 @@ SceneRoots:
   - {fileID: 840491765}
   - {fileID: 431114313}
   - {fileID: 1140894880}
+  - {fileID: 848922423}
+  - {fileID: 436606856}

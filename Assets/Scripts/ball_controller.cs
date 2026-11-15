@@ -108,6 +108,27 @@ public class ball_controller : MonoBehaviour
     /// <summary>True once a player has reached Points To Win.</summary>
     public bool RoundOver { get; private set; }
 
+    /// <summary>
+    /// While true the ball is hidden and frozen and nobody can serve (used while the tutorial runs).
+    /// </summary>
+    public bool WaitingToStart
+    {
+        get => waitingToStart;
+        set
+        {
+            waitingToStart = value;
+            SetVisible(!value);
+        }
+    }
+    private bool waitingToStart;
+
+    /// <summary>
+    /// Practice balls (tutorial copies) never score or serve. When their rally is over they fire
+    /// OnPracticeEnded instead, and whoever spawned them decides what happens next.
+    /// </summary>
+    public bool PracticeMode { get; private set; }
+    public event Action<ball_controller> OnPracticeEnded;
+
     /// <summary>How fast the ball moves compared to normal. A special raises this and it never drops back down until a reset.</summary>
     public float SpeedMultiplier => speedFloor;
     /// <summary>True once a special has sped the ball up. Hits and bounces then cause slow-mo impact frames.</summary>
@@ -155,13 +176,56 @@ public class ball_controller : MonoBehaviour
         SetUpShadow();
     }
 
+    private void Start()
+    {
+        // The tutorial (if it's switched on in the menu) runs before the first serve.
+        if (!PracticeMode && game_settings.TutorialEnabled)
+            tutorial_manager.Instance.Begin(this);
+    }
+
     public void RegisterPlayer(player_movemen player)
     {
         if (!players.Contains(player)) players.Add(player);
     }
 
+    // ---------- Practice balls (tutorial) ----------
+
+    /// <summary>Makes a practice copy of this ball (for the tutorial). It's visible and starts with no rally.</summary>
+    public ball_controller SpawnPracticeCopy()
+    {
+        ball_controller copy = Instantiate(this, transform.parent);
+        copy.name = name + " (practice)";
+        copy.PracticeMode = true;
+        copy.waitingToStart = false;
+        copy.SetVisible(true);
+        return copy;
+    }
+
+    /// <summary>
+    /// Practice only: throws the ball from <paramref name="from"/> (at <paramref name="fromHeight"/>) so it
+    /// lands on <paramref name="target"/>, as if an invisible opponent had hit it.
+    /// </summary>
+    public void LaunchPractice(Vector2 from, float fromHeight, Vector2 target, float arcHeight, float speedScale)
+    {
+        transform.position = new Vector3(from.x, from.y, transform.position.z);
+        height = fromHeight;
+        Hit(null, target, arcHeight, speedScale);
+    }
+
+    private void SetVisible(bool visible)
+    {
+        foreach (SpriteRenderer r in GetComponentsInChildren<SpriteRenderer>(true))
+        {
+            if (ballVisual != null && r.transform == transform && ballVisual != transform) continue; // original sprite moved to Visual
+            r.enabled = visible;
+        }
+        if (visible) UpdateVisuals();
+    }
+
     private void Update()
     {
+        if (waitingToStart) return; // hidden until the tutorial is done
+
         if (State == BallState.Held)
         {
             if (Server == null) Server = firstServer != null ? firstServer : (players.Count > 0 ? players[0] : null);
@@ -175,7 +239,7 @@ public class ball_controller : MonoBehaviour
             if (State == BallState.Dead)
             {
                 resetTimer -= Time.deltaTime;
-                if (resetTimer <= 0f && !RoundOver) // no more serves once someone has won
+                if (resetTimer <= 0f && !RoundOver && !PracticeMode) // no more serves once someone has won
                 {
                     if (resetSpecialsEachPoint) ResetSpecials();
                     PrepareServe(Server);
@@ -403,6 +467,12 @@ public class ball_controller : MonoBehaviour
         spinAcceleration = 0f;
         wallTimer = 0f;
 
+        if (PracticeMode)
+        {
+            OnPracticeEnded?.Invoke(this); // practice balls never score
+            return;
+        }
+
         if (winner != null)
         {
             winner.AddPoint();
@@ -592,7 +662,10 @@ public class ball_controller : MonoBehaviour
 
         visualBaseScale = ballVisual.localScale;
         var visualRenderer = ballVisual.GetComponent<SpriteRenderer>();
-        ballRadius = visualRenderer != null ? visualRenderer.bounds.extents.y : 0f;
+        // From the sprite itself (not renderer bounds), so it's right even if the renderer starts hidden.
+        ballRadius = visualRenderer != null && visualRenderer.sprite != null
+            ? visualRenderer.sprite.bounds.extents.y * Mathf.Abs(ballVisual.lossyScale.y)
+            : 0f;
     }
 
     /// <summary>If no shadow is assigned, creates a pixel-art ellipse shadow sized to match the ball.</summary>
