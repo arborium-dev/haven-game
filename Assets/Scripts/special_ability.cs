@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Playables;
 using UnityEngine.Video;
@@ -27,6 +28,13 @@ public class special_ability : MonoBehaviour
              "Videos use their own clip length.")]
     [SerializeField] private float cutsceneDuration = 1.5f;
 
+    [Header("Music")]
+    [Tooltip("Music to pause when the cutscene starts. Leave empty to pause every AudioSource that's playing " +
+             "at that moment (the cutscene's own audio is left alone).")]
+    [SerializeField] private AudioSource[] musicSources;
+    [Tooltip("ON: music picks up where it left off when time resumes. OFF: it stays stopped.")]
+    [SerializeField] private bool resumeMusicAfter = true;
+
     [Header("Pose (after the cutscene, time still stopped)")]
     [Tooltip("Sprite the player switches to. Empty = skip the pose.")]
     [SerializeField] private Sprite poseSprite;
@@ -46,6 +54,7 @@ public class special_ability : MonoBehaviour
     private Sprite spriteBeforePose;
     private bool posing;
     private Coroutine sequence;
+    private readonly List<AudioSource> pausedAudio = new List<AudioSource>();
 
     private void Awake()
     {
@@ -77,15 +86,46 @@ public class special_ability : MonoBehaviour
         EndPose();
 
         if (IsPlaying) match_effects.Instance.ResumeTime();
+        ResumeMusic();
         IsPlaying = false;
+    }
+
+    private void PauseMusic()
+    {
+        pausedAudio.Clear();
+
+        AudioSource[] sources = musicSources != null && musicSources.Length > 0
+            ? musicSources
+            : FindObjectsByType<AudioSource>();
+
+        foreach (AudioSource source in sources)
+        {
+            if (source == null || !source.isPlaying) continue;
+            // Don't silence the cutscene's own sound.
+            if (cutsceneObject != null && source.transform.IsChildOf(cutsceneObject.transform)) continue;
+
+            source.Pause();
+            pausedAudio.Add(source);
+        }
+    }
+
+    private void ResumeMusic()
+    {
+        if (resumeMusicAfter)
+        {
+            foreach (AudioSource source in pausedAudio)
+                if (source != null) source.UnPause();
+        }
+        pausedAudio.Clear();
     }
 
     private IEnumerator Sequence()
     {
         IsPlaying = true;
 
-        // 1. Stop time.
+        // 1. Stop time and the music.
         match_effects.Instance.StopTime();
+        PauseMusic();
 
         // 2. Cutscene.
         if (cutsceneTimeline != null)
@@ -136,6 +176,7 @@ public class special_ability : MonoBehaviour
         if (player.Ball != null) player.Ball.StackSpeedBoost(ballSpeedMultiplier);
         match_effects.Instance.QueueTableMark(); // the next table bounce leaves a mark
         match_effects.Instance.ResumeTime();
+        ResumeMusic();
 
         IsPlaying = false;
         sequence = null;
