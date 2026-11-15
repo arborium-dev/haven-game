@@ -53,8 +53,9 @@ public class tutorial_manager : MonoBehaviour
     [SerializeField] private float easyAimSpread = 0.6f;
     [Tooltip("Seconds between one practice ball finishing and the next one coming.")]
     [SerializeField] private float delayBetweenBalls = 0.6f;
-    [Tooltip("After a successful hit, the ball flies away for this long (at most) before it's removed.")]
-    [SerializeField] private float returnedBallLifetime = 1.2f;
+    [Tooltip("Returned balls are removed when they reach the center of the screen. This is a safety limit in case " +
+             "one never gets there (seconds after the hit).")]
+    [SerializeField] private float returnedBallLifetime = 2f;
 
     [Header("Text")]
     [SerializeField] private string moveTitle = "MOVE";
@@ -247,9 +248,12 @@ public class tutorial_manager : MonoBehaviour
             if (hit)
             {
                 s.hits++;
-                // Let the return fly off for a moment before clearing it away.
+                // Let the return fly off until it reaches the center of the screen, then remove it,
+                // so one player's returns never end up in the other player's area.
+                int side = s.player.Side;
                 float t = 0f;
-                while (!ended && t < returnedBallLifetime)
+                while (!ended && t < returnedBallLifetime && pb != null
+                       && (pb.GroundPosition.x - CenterX()) * side > 0f)
                 {
                     t += Time.deltaTime;
                     yield return null;
@@ -264,15 +268,17 @@ public class tutorial_manager : MonoBehaviour
         }
     }
 
-    /// <summary>Throws a practice ball from the far end of the table so it lands on the player's half.</summary>
+    /// <summary>Throws a practice ball from the center of the screen so it lands on the player's half.</summary>
     private void Launch(ball_controller pb, player_movemen p, bool easyAim)
     {
         Bounds table = ball.TableBounds;
         int side = p.Side; // -1 = player is on the left
+        const float fromHeight = 1f;
 
-        // From just past the opponent's end, like an invisible opponent hit it.
-        float fromX = side < 0 ? table.max.x + 0.3f : table.min.x - 0.3f;
-        float fromY = UnityEngine.Random.Range(table.min.y + 0.5f, table.max.y - 0.5f);
+        // Appears in the middle of the screen (nudged a hair onto this player's side so it never crosses
+        // into the other half), lifted so the ball itself shows at the screen's center.
+        float fromX = CenterX() + side * 0.1f;
+        float fromY = Mathf.Clamp(CenterY() - fromHeight, table.min.y + 0.5f, table.max.y - 0.5f);
 
         float depth = UnityEngine.Random.Range(landingDepthRange.x, landingDepthRange.y);
         float targetX = ball.LandingXAtDepth(side, depth);
@@ -280,7 +286,20 @@ public class tutorial_manager : MonoBehaviour
             ? p.PaddlePoint.y + UnityEngine.Random.Range(-easyAimSpread, easyAimSpread)
             : UnityEngine.Random.Range(table.min.y, table.max.y); // (autocorrect keeps it off the edges)
 
-        pb.LaunchPractice(new Vector2(fromX, fromY), 1f, new Vector2(targetX, targetY), practiceArcHeight, practiceSpeed);
+        pb.LaunchPractice(new Vector2(fromX, fromY), fromHeight, new Vector2(targetX, targetY), practiceArcHeight, practiceSpeed);
+    }
+
+    /// <summary>The middle of the screen in world X (falls back to the net if there's no camera).</summary>
+    private float CenterX()
+    {
+        Camera cam = Camera.main;
+        return cam != null ? cam.transform.position.x : ball.NetX;
+    }
+
+    private float CenterY()
+    {
+        Camera cam = Camera.main;
+        return cam != null ? cam.transform.position.y : ball.TableBounds.center.y;
     }
 
     // ---------- UI ----------

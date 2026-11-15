@@ -55,6 +55,10 @@ public class ball_controller : MonoBehaviour
     [Tooltip("After this many slow (barely) hits in a row, counting both players, the next slow hit is too weak " +
              "to clear the net: it rolls back to the hitter, who has to roll-save it. 0 = never.")]
     [SerializeField] private int maxSlowHitsInARow = 3;
+    [Tooltip("Chance (0-1) that ANY slow hit is too weak to clear the net and becomes a roll save for the hitter. " +
+             "Special shots are never slow hits, so they're never affected.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float slowHitRollChance = 0.1f;
     [Tooltip("How high that too-weak shot lobs before dropping into the net.")]
     [SerializeField] private float dribbleArcHeight = 1.2f;
 
@@ -67,6 +71,17 @@ public class ball_controller : MonoBehaviour
     [SerializeField] private float spinStrength = 1.2f;
     [Tooltip("Seconds for spin to fade in once it starts.")]
     [SerializeField] private float spinRampTime = 1f;
+
+    [Header("Keeping The Ball Reachable")]
+    [Tooltip("Angle every shot (specials included) so its straight-line path stays on the table all the way to the " +
+             "receiver's end, instead of drifting off a side after it lands.")]
+    [SerializeField] private bool keepShotsOnTable = true;
+    [Tooltip("How far in from the sides that path has to stay.")]
+    [SerializeField] private float pathSideMargin = 0.5f;
+    [Tooltip("A ball sliding/rolling along the table this close to a side edge gets pushed away from it.")]
+    [SerializeField] private float wallSlideMargin = 0.4f;
+    [Tooltip("How fast a ball slides away from a side edge (at least).")]
+    [SerializeField] private float slideAwaySpeed = 1f;
 
     [Header("Drop Shadow")]
     [SerializeField] private Color shadowColor = new Color(0f, 0f, 0f, 0.4f);
@@ -146,6 +161,7 @@ public class ball_controller : MonoBehaviour
     private float spinAcceleration;   // current sideways pull toward the middle (0 = no spin)
     private player_movemen netFaulter; // who hit it into the net (ball is rolling back to them)
     private int slowHitStreak;         // slow (barely) hits in a row this rally, both players
+    private bool dribbling;            // a too-weak shot on its way into the net (the net always catches it)
 
     /// <summary>True while a net ball is rolling back toward the player who hit it, waiting to be rescued.</summary>
     public bool InNetRebound => netFaulter != null && State == BallState.InPlay;
@@ -275,6 +291,7 @@ public class ball_controller : MonoBehaviour
     {
         LastHitter = hitter;
         receiverBounces = 0;
+        dribbling = false;
         netFaulter = null; // rescued (or a fresh shot)
         State = BallState.InPlay;
         shotSpeed = Mathf.Max(0.1f, speedScale);
@@ -283,15 +300,19 @@ public class ball_controller : MonoBehaviour
 
         // Slow-hit streak counts both players' shots in this rally; any normal hit resets it.
         slowHitStreak = slowHit ? slowHitStreak + 1 : 0;
-        if (slowHit && maxSlowHitsInARow > 0 && slowHitStreak > maxSlowHitsInARow)
+        bool tooManySlowHits = maxSlowHitsInARow > 0 && slowHitStreak > maxSlowHitsInARow;
+        bool unluckySlowHit = UnityEngine.Random.value < slowHitRollChance;
+        if (slowHit && (tooManySlowHits || unluckySlowHit))
         {
             slowHitStreak = 0;
             DribbleIntoNet(hitter, from, target);
+            dribbling = true; // guaranteed to be caught by the net, whatever height it gets there at
             OnHit?.Invoke(hitter);
             return;
         }
 
         target = AutocorrectTarget(target, hitter);
+        if (keepShotsOnTable) target = KeepPathOnTable(from, target, hitter);
         float apex = Mathf.Max(arcHeight, height + 0.05f, netHeight + netClearance);
 
         for (int i = 0; i < 10; i++)
@@ -312,6 +333,35 @@ public class ball_controller : MonoBehaviour
     }
 
     /// <summary>
+    /// After it lands, a ball keeps going in the same straight line. Angle the shot so that line stays on the
+    /// table (Path Side Margin in from the sides) all the way to the receiver's end, so the receiver can always
+    /// reach it and it never drifts off a side first. (A sharp diagonal special could do exactly that.)
+    /// </summary>
+    private Vector2 KeepPathOnTable(Vector2 from, Vector2 target, player_movemen hitter)
+    {
+        Bounds b = TableBounds;
+        int toward = hitter != null ? hitter.Facing : (target.x >= NetX ? 1 : -1);
+        float endX = toward > 0 ? b.max.x : b.min.x;
+
+        float dx = target.x - from.x;
+        if (Mathf.Abs(dx) < 0.01f) return target;
+        float t = (endX - from.x) / dx; // where the receiver's end is along the line (landing spot = 1)
+        if (t <= 1f) return target;
+
+        float lo = b.min.y + pathSideMargin, hi = b.max.y - pathSideMargin;
+        if (lo > hi) lo = hi = b.center.y;
+
+        float yAtEnd = from.y + (target.y - from.y) * t;
+        if (yAtEnd >= lo && yAtEnd <= hi) return target;
+
+        // Pull the landing spot in so the line reaches the end inside the table.
+        yAtEnd = Mathf.Clamp(yAtEnd, lo, hi);
+        target.y = from.y + (yAtEnd - from.y) / t;
+        target.y = Mathf.Clamp(target.y, b.min.y + 0.2f, b.max.y - 0.2f); // still lands on the table
+        return target;
+    }
+
+    /// <summary>
     /// One slow hit too many: a soft lob that comes down right on the net, so it bounces back to the hitter as a
     /// rolling ball they have to roll-save (or lose the point).
     /// </summary>
@@ -320,8 +370,9 @@ public class ball_controller : MonoBehaviour
         Bounds b = TableBounds;
         int toward = hitter != null ? hitter.Facing : (aimedTarget.x >= NetX ? 1 : -1);
 
-        // Land just past the net line, inside the table's depth so it's guaranteed to catch the net.
-        var target = new Vector2(NetX + toward * 0.05f, Mathf.Clamp(aimedTarget.y, b.min.y + 0.3f, b.max.y - 0.3f));
+        // Aim a little past the net line (inside the table's depth), so it reaches the net while still dropping.
+        // The net always catches a dribble (see HitNet), so it can't sneak over.
+        var target = new Vector2(NetX + toward * 0.6f, Mathf.Clamp(aimedTarget.y, b.min.y + 0.3f, b.max.y - 0.3f));
         float apex = Mathf.Max(dribbleArcHeight, height + 0.05f);
 
         float upSpeed = Mathf.Sqrt(2f * gravity * Mathf.Max(0f, apex - height));
@@ -370,11 +421,17 @@ public class ball_controller : MonoBehaviour
         return Rect.MinMaxRect(minX, minY, maxX, maxY);
     }
 
-    /// <summary>A random spot inside the safe landing zone on the half in direction <paramref name="toward"/>.</summary>
-    public Vector2 RandomLandingSpot(int toward)
+    /// <summary>
+    /// A random spot inside the safe landing zone on the half in direction <paramref name="toward"/>.
+    /// <paramref name="upDownHalf"/>: +1 = only the top half of the table, -1 = only the bottom half, 0 = anywhere.
+    /// </summary>
+    public Vector2 RandomLandingSpot(int toward, int upDownHalf = 0)
     {
         Rect zone = SafeLandingZone(toward);
-        return new Vector2(UnityEngine.Random.Range(zone.xMin, zone.xMax), UnityEngine.Random.Range(zone.yMin, zone.yMax));
+        float yMin = zone.yMin, yMax = zone.yMax;
+        if (upDownHalf > 0) yMin = zone.center.y;
+        else if (upDownHalf < 0) yMax = zone.center.y;
+        return new Vector2(UnityEngine.Random.Range(zone.xMin, zone.xMax), UnityEngine.Random.Range(yMin, yMax));
     }
 
     /// <summary>
@@ -405,8 +462,9 @@ public class ball_controller : MonoBehaviour
         Vector2 prevPos = GroundPosition;
         float prevHeight = height;
 
-        if (State == BallState.InPlay) UpdateWallSpin(dt);
+        if (State == BallState.InPlay && netFaulter == null) UpdateWallSpin(dt); // no spin on a rolling net ball
         groundVelocity.y += spinAcceleration * dt;
+        if (State == BallState.InPlay) SlideAwayFromWalls(prevPos, prevHeight);
 
         Vector2 newPos = prevPos + groundVelocity * dt;
         verticalVelocity -= gravity * dt;
@@ -417,11 +475,20 @@ public class ball_controller : MonoBehaviour
             return;
 
         // Only hit the table when coming down onto it from above (not when sliding in from under it).
-        if (IsOverTable(newPos) && prevHeight >= 0f && height <= 0f && verticalVelocity < 0f)
+        // Check where it ACTUALLY touched down during this step, not just where it ended up: a fast ball landing
+        // near the far end can be past the edge by the end of the frame, and that bounce must still count.
+        if (prevHeight >= 0f && height <= 0f && verticalVelocity < 0f)
         {
-            BounceOnTable(newPos);
+            float k = prevHeight - height > 0.0001f ? prevHeight / (prevHeight - height) : 1f;
+            Vector2 touchdown = Vector2.Lerp(prevPos, newPos, k);
+            if (IsOverTable(touchdown))
+            {
+                BounceOnTable(touchdown);
+                return;
+            }
         }
-        else if (height <= -floorDepth)
+
+        if (height <= -floorDepth)
         {
             HitFloor();
         }
@@ -450,16 +517,43 @@ public class ball_controller : MonoBehaviour
         spinAcceleration = Mathf.MoveTowards(spinAcceleration, target, spinStrength * dt * 2f);
     }
 
+    /// <summary>
+    /// A ball sliding / rolling along the table that touches (or hugs) a side edge is pushed back toward the
+    /// middle, so it can never slide off a side where nobody can reach it.
+    /// </summary>
+    private void SlideAwayFromWalls(Vector2 pos, float h)
+    {
+        if (h > 0.25f) return; // in the air, not sliding
+
+        Bounds b = TableBounds;
+        if (pos.x < b.min.x || pos.x > b.max.x) return;                  // past an end: it's falling off, fine
+        if (pos.y < b.min.y - 0.01f || pos.y > b.max.y + 0.01f) return;  // not on the table surface
+
+        if (pos.y <= b.min.y + wallSlideMargin && groundVelocity.y < slideAwaySpeed)
+            groundVelocity.y = Mathf.Max(-groundVelocity.y, slideAwaySpeed);   // bottom edge: slide up
+        else if (pos.y >= b.max.y - wallSlideMargin && groundVelocity.y > -slideAwaySpeed)
+            groundVelocity.y = Mathf.Min(-groundVelocity.y, -slideAwaySpeed);  // top edge: slide down
+    }
+
     private bool HitNet(Vector2 prevPos, Vector2 newPos)
     {
         float netX = NetX;
         bool crossed = Mathf.Sign(prevPos.x - netX) != Mathf.Sign(newPos.x - netX);
-        if (!crossed || height >= netHeight || !IsWithinTableDepth(newPos.y)) return false;
+        if (!crossed || !IsWithinTableDepth(newPos.y)) return false;
+        if (height >= netHeight && !dribbling) return false; // cleared it (a too-weak dribble always gets caught)
 
-        // Knock it back onto the hitter's side and let it drop.
+        // Knock it back onto the hitter's side and let it drop. It goes STRAIGHT back (no sideways drift and
+        // no wall spin), so it always rolls off the hitter's end where it can be saved, never off a side.
         transform.position = new Vector3(prevPos.x, prevPos.y, transform.position.z);
-        groundVelocity = new Vector2(-groundVelocity.x * 0.15f, groundVelocity.y * 0.3f);
+        groundVelocity = new Vector2(-groundVelocity.x * 0.15f, 0f);
         verticalVelocity = Mathf.Min(verticalVelocity, 0f);
+        spinAcceleration = 0f;
+        wallTimer = 0f;
+        dribbling = false;
+
+        // It's over the table here. If it reached the net already below the surface, put it back ON the table,
+        // otherwise it would sink straight through to the floor and wrongly end the point.
+        height = Mathf.Max(height, 0f);
 
         // Still a live ball: it rolls back toward the hitter, who can hit it again to keep the rally going.
         // Clearing LastHitter lets them swing at it again (and skips the "bounced on your own side" fault).
@@ -483,15 +577,13 @@ public class ball_controller : MonoBehaviour
 
         if (State != BallState.InPlay || LastHitter == null) return;
 
+        // Bounces are only remembered here. The point isn't decided until the ball actually leaves play
+        // (reaches the floor, see HitFloor), so the score never changes while the ball is still moving
+        // and anyone can still hit it until then.
+        // (A bounce on the hitter's OWN side isn't a fault: shots always aim at the other half, so that only
+        // happens from frame-step error right before the net. If it then can't get over, the net catches it.)
         int side = pos.x < NetX ? -1 : 1;
-        if (side == LastHitter.Side)
-        {
-            EndPoint(Opponent(LastHitter)); // bounced on the hitter's own side
-        }
-        else if (++receiverBounces >= 2)
-        {
-            EndPoint(LastHitter); // bounced twice, opponent never returned it
-        }
+        if (side != LastHitter.Side) receiverBounces++;
     }
 
     private void HitFloor()
@@ -509,9 +601,10 @@ public class ball_controller : MonoBehaviour
             return;
         }
 
-        // Landed off the table without touching the opponent's side = hitter's fault.
-        // Bounced on the opponent's side first = opponent missed it.
-        EndPoint(receiverBounces == 0 ? Opponent(LastHitter) : LastHitter);
+        // Left the table without touching the opponent's side = hitter's fault.
+        // Bounced on the opponent's side and nobody returned it = the opponent missed it.
+        bool hitterFault = receiverBounces == 0;
+        EndPoint(hitterFault ? Opponent(LastHitter) : LastHitter);
     }
 
     // ---------- Points / serving ----------
@@ -523,6 +616,7 @@ public class ball_controller : MonoBehaviour
         spinAcceleration = 0f;
         wallTimer = 0f;
         netFaulter = null;
+        dribbling = false;
         slowHitStreak = 0;
 
         if (PracticeMode)
@@ -552,6 +646,7 @@ public class ball_controller : MonoBehaviour
         Server = server;
         LastHitter = null;
         receiverBounces = 0;
+        dribbling = false;
         groundVelocity = Vector2.zero;
         verticalVelocity = 0f;
         netFaulter = null;

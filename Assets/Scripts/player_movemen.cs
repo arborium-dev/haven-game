@@ -301,7 +301,8 @@ public class player_movemen : MonoBehaviour
         HitBall.Hit(this,
                  GetShotTarget(aim, barely ? barelyHitDepth : normalHitDepth),
                  shotArcHeight,
-                 barely ? barelyHitSpeed : normalHitSpeed);
+                 barely ? barelyHitSpeed : normalHitSpeed,
+                 slowHit: barely); // too many slow hits in a row and this one dribbles into the net
 
         if (barely)
         {
@@ -322,8 +323,11 @@ public class player_movemen : MonoBehaviour
         PlayAnimation(specialShotAnimation, restart: true);
         OnSpecialShot?.Invoke();
 
-        // The special lands somewhere random on the opponent's side (inside the safe zone).
-        HitBall.Hit(this, HitBall.RandomLandingSpot(Facing), shotArcHeight);
+        // The special lands somewhere random on the opponent's side (inside the safe zone), in the top or bottom
+        // half of the table depending on which way the player is moving (anywhere if they're standing still).
+        // It always travels at normal-hit speed.
+        int half = aim > 0.1f ? 1 : (aim < -0.1f ? -1 : 0);
+        HitBall.Hit(this, HitBall.RandomLandingSpot(Facing, half), shotArcHeight, normalHitSpeed);
 
         // =====================================================================
         //  SPECIAL SHOT
